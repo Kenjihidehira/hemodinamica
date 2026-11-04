@@ -1,0 +1,12 @@
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './styles.css';
+import './patrimonio-theme.css';
+import './jusimed-theme.css';
+import './modules.css';
+import './orders.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode><App /></React.StrictMode>,
+);
