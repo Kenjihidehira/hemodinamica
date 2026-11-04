@@ -9,11 +9,14 @@ Esta versão implementa os três módulos priorizados para apresentação. Dados
 | Cadastro → Produtos | Criar e editar produto, código, especialidade, mínimo global, fabricante e fornecedor |
 | Cadastro → Novo lote | Criar uma posição por produto, lote, local e validade, com saldo inicial |
 | Cadastro → Importar planilha | Três etapas indicadas na tela: escolher .xlsx/.csv, validar (prévia com validade, linhas com erro destacadas e filtro “só linhas com erro”) e confirmar somente se todas as linhas forem válidas |
-| Estoque | Buscar e filtrar por situação; ver físico, disponível e comprometido (reserva de pedido, reserva interna, bloqueio, quarentena); alterar situações com motivo, confirmar transferências e consultar histórico local |
+| Estoque | Buscar e filtrar por situação; ver físico, disponível e comprometido (reserva de pedido, reserva interna, bloqueio, quarentena); confirmar transferências e consultar o histórico geral |
+| Estoque → ficha do lote | Selecionar uma posição abre a ficha ao lado da lista (a partir de 1280 px) ou em tela cheia: lote, validade, local, campo de UDI (ainda não registrado), composição do saldo, situações com motivo, pedidos vinculados, movimentações, contagens e alterações daquela posição |
 | Inventário físico | Localizar etiqueta, contar sem ver o esperado, justificar diferenças e revisar o efeito do ajuste antes de aplicar |
 | Dashboard | Acompanhar disponível e a composição do saldo físico, trânsito, divergências e pendências de pedidos com a próxima ação |
 
-Cada área tem endereço próprio no navegador (por exemplo `#/estoque`), o que permite voltar e avançar e abrir uma área diretamente.
+Cada área tem endereço próprio no navegador (por exemplo `#/estoque`), o que permite voltar e avançar e abrir uma área diretamente. A ficha de uma posição também tem endereço (`#/estoque/<id>`): Alertas, Operação, Leitura de código, as prioridades do Dashboard e o registro de alterações levam direto a ela, e a partir da ficha é possível abrir o pedido vinculado. Esc ou "Voltar à lista" fecham a ficha.
+
+A ficha é uma visão de consulta e rastreabilidade da posição. Ela reúne o que o protótipo já registra; não substitui uma consulta de recall com dados de pacientes, que esta versão não guarda.
 
 ## Modelo de importação
 

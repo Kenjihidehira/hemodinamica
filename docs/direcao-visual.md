@@ -27,10 +27,11 @@ As antigas camadas `patrimonio-theme.css` e `jusimed-theme.css`, que sobrescrevi
 
 1. **Navegação:** cabeçalho fixo com logotipo, identificação de protótipo e menu horizontal. Cada área tem endereço próprio (`#/estoque`, `#/pedidos`…), então voltar/avançar do navegador funciona. Até 1200 px o menu vira um painel com alvos de 44 px, fechamento por seleção, toque fora ou Esc e retorno do foco ao botão. Até 360 px as opções ficam em uma coluna.
 2. **Dashboard:** faixa de contexto discreta, seis KPIs clicáveis, composição do saldo físico (disponível, reserva de pedidos, reserva interna, bloqueio, quarentena e vencido) e pendências de pedidos com a próxima ação. No celular, as análises complementares ficam atrás de um botão.
-3. **Pedidos:** barra de quatro etapas, motivos específicos para a expedição bloqueada, progresso na lista e aviso de reserva parcial.
-4. **Importação:** etapas explícitas (arquivo → validação → confirmação), validade visível na prévia, linhas com erro destacadas e filtro “só linhas com erro”.
-5. **Inventário:** sem saldo esperado antes do registro; depois, situação da contagem e efeito do ajuste antes de aplicar.
-6. **Responsividade:** verificada em 1440, 1220, 1100, 390 e 320 px, sem rolagem horizontal da página.
+3. **Estoque e ficha do lote:** lista com painel de detalhe (modelo *split view* / lista-detalhe). A partir de 1280 px a ficha fica ao lado da tabela, fixa e com rolagem própria; abaixo disso ocupa a tela, com "Voltar à lista". A ficha segue o modelo de página de objeto: cabeçalho com identificação e situação, fatos do lote, saldo e seções de pedidos, movimentações, contagens e alterações.
+4. **Pedidos:** barra de quatro etapas, motivos específicos para a expedição bloqueada, progresso na lista e aviso de reserva parcial.
+5. **Importação:** etapas explícitas (arquivo → validação → confirmação), validade visível na prévia, linhas com erro destacadas e filtro “só linhas com erro”.
+6. **Inventário:** sem saldo esperado antes do registro; depois, situação da contagem e efeito do ajuste antes de aplicar.
+7. **Responsividade:** verificada em 1440, 1280, 1220, 1150, 1100, 390 e 320 px, sem rolagem horizontal da página.
 
 ## Limites da referência
 

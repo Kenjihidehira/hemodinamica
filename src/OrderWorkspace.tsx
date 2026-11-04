@@ -28,8 +28,8 @@ function dispatchBlockers(data: DemoData, order: Order) {
   return blockers;
 }
 
-export default function Orders({ data, onChange, initialFilter = 'Abertos', initialUnit = 'Todas as unidades' }: Props & { initialFilter?: OrderFilter; initialUnit?: string }) {
-  const [creating, setCreating] = useState(false), [selectedId, setSelectedId] = useState('');
+export default function Orders({ data, onChange, initialFilter = 'Abertos', initialUnit = 'Todas as unidades', initialOrderId = '' }: Props & { initialFilter?: OrderFilter; initialUnit?: string; initialOrderId?: string }) {
+  const [creating, setCreating] = useState(false), [selectedId, setSelectedId] = useState(initialOrderId);
   const [filter, setFilter] = useState<OrderFilter>(initialFilter), [unit, setUnit] = useState(initialUnit), [search, setSearch] = useState('');
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [messageTone, setMessageTone] = useState<'success' | 'warning'>('success');
   const selected = data.orders.find((o) => o.id === selectedId);

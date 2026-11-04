@@ -20,7 +20,8 @@
 .module-form input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--brand-900); }
 .module-form .button { justify-self: start; }
 .module-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.module-form-row.three-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.module-form-row.three-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.module-form-row.three-columns label { align-content: start; }
 .module-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .module-note { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.55; }
 .field-note { color: var(--muted); font-size: 12px; font-weight: 400; }
@@ -79,6 +80,51 @@
 .count-effect { padding: 8px 12px; border: 1px solid var(--info-line); border-radius: var(--radius); background: var(--info-bg); color: var(--text); font-size: 13px; }
 .count-effect strong { color: var(--ink); }
 
+/* Estoque: lista + ficha do lote em painel lateral (split view). */
+.stock-workspace { display: grid; gap: 16px; align-items: start; }
+.stock-page.has-selection .stock-workspace { grid-template-columns: minmax(0, 1fr) minmax(380px, 440px); }
+.stock-table tr.is-clickable { cursor: pointer; }
+.stock-table tr.is-selected td { background: var(--brand-50); }
+.stock-table tr.is-selected td:first-child { box-shadow: inset 3px 0 0 var(--brand-900); }
+.stock-table.is-narrow { min-width: 0; }
+.stock-table.is-narrow .col-code { display: none; }
+.inline-link { display: inline; padding: 0; font-size: inherit; }
+
+.lot-sheet { position: sticky; top: 120px; max-height: calc(100vh - 136px); overflow-y: auto; overscroll-behavior: contain; }
+.lot-sheet-head { position: relative; display: grid; gap: 3px; justify-items: start; padding: 14px 52px 14px 18px; border-bottom: 1px solid var(--line); }
+.lot-sheet-nav { position: absolute; top: 8px; right: 8px; }
+.lot-sheet-back { display: none; }
+.lot-section .lot-form { padding: 0; }
+.lot-sheet-caption { color: var(--muted); font-size: 12px; font-weight: 600; }
+.lot-sheet-head h2 { color: var(--brand-950); font-size: 18px; line-height: 1.25; }
+.lot-sheet-sub { color: var(--muted); font-size: 12.5px; margin-bottom: 4px; }
+.lot-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; padding: 12px 18px 14px; }
+.lot-facts dt { color: var(--muted); font-size: 12px; }
+.lot-facts dd { margin: 1px 0 0; color: var(--ink); font-size: 13.5px; overflow-wrap: anywhere; }
+.lot-facts dd small { display: block; color: var(--muted); font-size: 12px; }
+.lot-facts dd.is-muted { color: var(--subtle); }
+.lot-section { display: grid; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--line); }
+.lot-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.lot-section-head h3 { font-size: 14px; }
+.lot-section-head span { color: var(--muted); font-size: 12.5px; }
+.lot-section-head span strong { color: var(--ink); }
+.composition-bar.lot-bar { margin: 0; }
+.lot-balance { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; margin: 0; padding: 0; list-style: none; }
+.lot-balance li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; color: var(--text); font-size: 12.5px; }
+.lot-balance .swatch { width: 12px; height: 12px; border-radius: 3px; }
+.lot-balance strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.lot-balance .is-empty, .lot-balance .is-empty strong { color: var(--subtle); font-weight: 500; }
+.lot-section > .text-link { justify-self: start; }
+.lot-section .module-actions .button { justify-self: start; }
+.lot-list { margin: 0; padding: 0; list-style: none; }
+.lot-list li { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+.lot-list li:first-child { border-top: 0; padding-top: 0; }
+.lot-list li > div { flex: 1 1 200px; min-width: 0; }
+.lot-list strong { color: var(--ink); font-size: 13px; }
+.lot-list small { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.lot-list time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.lot-list .text-link { font-size: 12.5px; }
+
 /* Controles de situação e transferências */
 .availability-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-soft); }
 .availability-summary small { color: var(--subtle); font-size: 12px; }
@@ -89,6 +135,16 @@
 .audit-list time, .audit-list span { color: var(--muted); }
 .audit-list strong { color: var(--ink); }
 
+@media (max-width: 1279px) {
+  /* Lado a lado só a partir de 1280 px. Abaixo, a ficha ocupa a tela; a lista volta com "Voltar à lista" ou o voltar do navegador. */
+  .stock-page.has-selection .stock-workspace { grid-template-columns: minmax(0, 1fr); }
+  .stock-page.has-selection .stock-list, .stock-page.has-selection .stock-extra { display: none; }
+  .lot-sheet { position: static; max-height: none; overflow: visible; }
+  .lot-sheet-head { padding-right: 18px; }
+  .lot-sheet-nav { position: static; margin-bottom: 4px; }
+  .lot-sheet-back { display: inline-flex; }
+  .lot-sheet-close { display: none; }
+}
 @media (max-width: 800px) {
   .module-columns { grid-template-columns: 1fr; }
   .audit-list > div { grid-template-columns: 1fr; gap: 2px; }
@@ -99,7 +155,6 @@
   .module-form, .count-list, .catalog-list, .audit-list { padding-inline: 16px; }
   .module-form-row { grid-template-columns: 1fr; }
   .module-form-row.three-columns { gap: 8px; }
-  .module-form-row.three-columns label { align-content: start; }
   .module-form input:not([type="checkbox"]), .module-form select, .module-form textarea { min-height: 44px; font-size: 16px; }
   .module-tabs { overflow-x: auto; }
   .module-tabs button { flex: 1 0 auto; padding: 0 12px; }
@@ -111,6 +166,10 @@
   .count-values { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .count-record.is-pending { padding-inline: 10px; margin-inline: -10px; }
 }
+@media (max-width: 640px) {
+  .lot-sheet-head, .lot-facts, .lot-section { padding-inline: 16px; }
+}
 @media (max-width: 360px) {
   .module-form-row.three-columns { grid-template-columns: 1fr; }
+  .lot-balance { grid-template-columns: 1fr; }
 }

@@ -131,7 +131,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .toolbar-filters select { height: var(--control-h); padding: 0 32px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 13px; }
 .count-label { color: var(--muted); font-size: 12px; font-weight: 500; }
 .table-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 46px; padding: 10px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.table-foot button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--brand-900); font-size: 12px; font-weight: 600; padding: 6px 0; }
+.table-foot button { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--brand-900); font-size: 12px; font-weight: 600; padding: 6px 0; white-space: nowrap; }
 .empty-state { padding: 32px 20px !important; text-align: center; color: var(--muted) !important; }
 .empty-state strong { display: block; color: var(--ink); margin-bottom: 4px; }
 .empty-state .button { margin-top: 12px; }

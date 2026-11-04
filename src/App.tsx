@@ -5,6 +5,7 @@ import Analytics from './Analytics';
 import Catalog from './Catalog';
 import Inventory from './Inventory';
 import StockControls from './StockControls';
+import LotSheet from './LotSheet';
 import Orders, { type OrderFilter } from './OrderWorkspace';
 import { moveStock } from './domain';
 import { csvCell } from './importing';
@@ -22,12 +23,21 @@ const nav: { page: Page; slug: string; label: string; icon: typeof Boxes }[] = [
   { page: 'movements', slug: 'movimentacoes', label: 'Movimentações', icon: ArrowLeftRight },
   { page: 'alerts', slug: 'alertas', label: 'Alertas', icon: Bell },
 ];
-const pageFromHash = (): Page => nav.find((item) => `#/${item.slug}` === window.location.hash)?.page ?? 'analytics';
+type Route = { page: Page; lotId?: string };
+/** Endereços: #/estoque, #/pedidos… e #/estoque/<id da posição> para a ficha do lote. */
+function parseHash(): Route {
+  const [, slug = '', lotId = ''] = /^#\/([^/]*)(?:\/(.+))?$/.exec(window.location.hash) ?? [];
+  const item = nav.find((entry) => entry.slug === slug);
+  if (!item) return { page: 'analytics' };
+  return item.page === 'stock' && lotId ? { page: 'stock', lotId: decodeURIComponent(lotId) } : { page: item.page };
+}
+/** Abaixo de 1280 px a ficha do lote ocupa a tela em vez de ficar ao lado da lista (ver modules.css). */
+const narrowScreen = () => window.matchMedia('(max-width: 1279px)').matches;
 const pageTitle: Record<Page, string> = { analytics: 'Visão estratégica do estoque', overview: 'Operação de estoque', stock: 'Estoque por lote', scan: 'Leitura de código', movements: 'Movimentações', alerts: 'Alertas de estoque', catalog: 'Cadastro e importação', counts: 'Inventário físico', orders: 'Pedidos e expedição' };
 const pageSubtitle: Record<Page, string> = {
   analytics: 'Disponibilidade de dispositivos, exposição por validade e pendências entre unidades.',
   overview: 'Prioridades do dia e últimos registros da equipe.',
-  stock: 'Saldo por produto, lote e local, com o que está livre e o que está comprometido.',
+  stock: 'Saldo por produto, lote e local. Selecione uma posição para abrir a ficha do lote.',
   orders: 'Fluxo do pedido: criar, reservar lotes, conferir e expedir.',
   catalog: 'Produtos, novos lotes e importação de planilha com validação antes de gravar.',
   counts: 'Contagem cega por posição e revisão da divergência antes do ajuste.',
@@ -65,7 +75,7 @@ function stockStatus(stock: Stock, all: Stock[], catalog: Product[]) {
 function downloadCsv(data: DemoData) {
   const getProduct = (id: string) => findProduct(id, data.products);
   const rows = [['Produto', 'Código', 'Lote', 'Localização', 'Validade', 'Físico', 'Disponível', 'Reservado', 'Bloqueado', 'Quarentena'], ...data.stock.map((item) => [getProduct(item.productId).name, getProduct(item.productId).code, item.lot, item.location, item.expiresAt, String(item.quantity), String(availableQuantity(item)), String(item.reserved), String(item.blocked), String(item.quarantined)])];
-  const csv = '﻿' + rows.map((row) => row.map(csvCell).join(';')).join('\r\n');
+  const csv = '\uFEFF' + rows.map((row) => row.map(csvCell).join(';')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = 'jusimed-estoque-demonstracao.csv'; link.click(); URL.revokeObjectURL(url);
 }
@@ -75,9 +85,10 @@ export default function App() {
   const products = data.products;
   const getProduct = (id: string) => findProduct(id, products);
   const [storageWarning, setStorageWarning] = useState(false);
-  const [page, setPage] = useState<Page>(pageFromHash);
+  const [route, setRoute] = useState<Route>(parseHash);
+  const page = route.page;
   const [menuOpen, setMenuOpen] = useState(false);
-  const [orderView, setOrderView] = useState<{ filter: OrderFilter; unit: string }>({ filter: 'Abertos', unit: 'Todas as unidades' });
+  const [orderView, setOrderView] = useState<{ filter: OrderFilter; unit: string; orderId?: string }>({ filter: 'Abertos', unit: 'Todas as unidades' });
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('Todas as situações');
   const [modal, setModal] = useState(false);
@@ -95,15 +106,25 @@ export default function App() {
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const modalOpener = useRef<HTMLElement | null>(null);
   const modalFirstField = useRef<HTMLSelectElement>(null);
+  const lotHeading = useRef<HTMLHeadingElement>(null);
+  const lotOpener = useRef<HTMLElement | null>(null);
+  const lotPushedFromList = useRef(false);
 
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(data)); setStorageWarning(false); } catch { setStorageWarning(true); } }, [data]);
   useEffect(() => { window.scrollTo(0, 0); }, [page]);
   useEffect(() => { if (page === 'scan') scanInputRef.current?.focus(); }, [page]);
   useEffect(() => {
-    function syncFromAddress() { setPage(pageFromHash()); setMenuOpen(false); setCameraOn(false); }
+    function syncFromAddress() { const next = parseHash(); if (!next.lotId) lotPushedFromList.current = false; setRoute(next); setMenuOpen(false); setCameraOn(false); }
     window.addEventListener('hashchange', syncFromAddress);
     return () => window.removeEventListener('hashchange', syncFromAddress);
   }, []);
+  useEffect(() => { if (route.lotId) lotHeading.current?.focus({ preventScroll: !narrowScreen() }); }, [route.lotId]);
+  useEffect(() => {
+    if (!route.lotId || modal || menuOpen) return;
+    function closeOnEscape(event: KeyboardEvent) { if (event.key === 'Escape') closeLot(); }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [route.lotId, modal, menuOpen]);
   useEffect(() => {
     if (!menuOpen) return;
     function closeOnEscape(event: KeyboardEvent) {
@@ -147,6 +168,23 @@ export default function App() {
   const expiring = data.stock.filter((item) => { const days = daysToExpiry(item.expiresAt); return item.quantity > 0 && days >= 0 && days <= 30; }).length;
   const lowProducts = products.filter((product) => data.stock.filter((item) => item.productId === product.id).reduce((sum, item) => sum + availableQuantity(item), 0) < product.minimum).length;
   const selected = data.stock.find((item) => item.id === selectedId) ?? data.stock[0];
+  const selectedLot = route.lotId ? data.stock.find((item) => item.id === route.lotId) : undefined;
+
+  function openLot(id: string) {
+    lotOpener.current = document.activeElement as HTMLElement | null;
+    const target = `#/estoque/${encodeURIComponent(id)}`;
+    if (route.page === 'stock' && route.lotId) window.history.replaceState(null, '', target);
+    else { lotPushedFromList.current = route.page === 'stock'; window.location.hash = target.slice(1); }
+    setRoute({ page: 'stock', lotId: id }); setMenuOpen(false); setSuccess('');
+    if (narrowScreen() && route.page === 'stock') window.scrollTo(0, 0);
+  }
+  function closeLot() {
+    const opener = lotOpener.current;
+    if (lotPushedFromList.current) { lotPushedFromList.current = false; window.history.back(); }
+    else { window.location.hash = '/estoque'; setRoute({ page: 'stock' }); }
+    window.setTimeout(() => { if (opener?.isConnected) opener.focus(); }, 60);
+  }
+  function openOrder(orderId: string) { navigate('orders'); setOrderView({ filter: 'Todos', unit: 'Todas as unidades', orderId }); }
 
   function openMovement(stockId?: string) { modalOpener.current = document.activeElement as HTMLElement | null; if (stockId) setSelectedId(stockId); setQuantity('1'); setMovementType('Saída'); setFormError(''); setModal(true); }
   function closeModal() { setModal(false); modalOpener.current?.focus?.(); }
@@ -154,7 +192,8 @@ export default function App() {
     if (next === 'orders') setOrderView({ filter: 'Abertos', unit: 'Todas as unidades' });
     const slug = nav.find((item) => item.page === next)!.slug;
     if (window.location.hash !== `#/${slug}`) window.location.hash = `/${slug}`;
-    setPage(next); setMenuOpen(false); setCameraOn(false); setSuccess('');
+    lotPushedFromList.current = false;
+    setRoute({ page: next }); setMenuOpen(false); setCameraOn(false); setSuccess('');
   }
   function registerMovement(event: React.FormEvent) {
     event.preventDefault();
@@ -191,17 +230,20 @@ export default function App() {
         {success && <div className="notice success" role="status"><Check size={17}/>{success}<button aria-label="Fechar aviso" onClick={() => setSuccess('')}><X size={15}/></button></div>}
         {page === 'catalog' && <Catalog data={data} onChange={setData}/>}
         {page === 'counts' && <Inventory data={data} onChange={setData}/>}
-        {page === 'orders' && <Orders data={data} onChange={setData} initialFilter={orderView.filter} initialUnit={orderView.unit}/>}
-        {page === 'analytics' && <Analytics data={data} onViewAlerts={() => navigate('alerts')} onViewStock={() => navigate('stock')} onViewMovements={() => navigate('movements')} onViewCounts={() => navigate('counts')} onViewOrders={(filter, unit) => { navigate('orders'); setOrderView({ filter, unit }); }} />}
+        {page === 'orders' && <Orders data={data} onChange={setData} initialFilter={orderView.filter} initialUnit={orderView.unit} initialOrderId={orderView.orderId}/>}
+        {page === 'analytics' && <Analytics data={data} onViewLot={openLot} onViewAlerts={() => navigate('alerts')} onViewStock={() => navigate('stock')} onViewMovements={() => navigate('movements')} onViewCounts={() => navigate('counts')} onViewOrders={(filter, unit) => { navigate('orders'); setOrderView({ filter, unit }); }} />}
         {page === 'overview' && <>
           <div className="stats"><div><strong>{products.length}</strong><span>produtos cadastrados</span></div><div><strong>{data.stock.filter((item) => item.quantity > 0).length}</strong><span>posições de estoque</span></div><div><strong>{expiring}</strong><span>lotes a vencer em 30 dias</span></div><div><strong>{lowProducts}</strong><span>{lowProducts === 1 ? 'produto abaixo do mínimo' : 'produtos abaixo do mínimo'}</span></div></div>
-          <div className="overview-grid"><section className="panel"><div className="panel-head"><div><h2>Prioridades de hoje</h2><p>Itens que exigem atenção da equipe.</p></div><button className="text-link" onClick={() => navigate('alerts')}>Ver alertas <ArrowRight size={16}/></button></div><StockTable items={alertStock.slice(0, 6)} data={data} compact onSelect={openMovement}/></section><section className="panel activity-panel"><div className="panel-head"><div><h2>Últimas movimentações</h2><p>Registros feitos no protótipo.</p></div></div><MovementList items={data.movements.slice(0, 5)} catalog={products}/><button className="panel-footer" onClick={() => navigate('movements')}>Ver todas as movimentações <ArrowRight size={16}/></button></section></div>
+          <div className="overview-grid"><section className="panel"><div className="panel-head"><div><h2>Prioridades de hoje</h2><p>Itens que exigem atenção da equipe.</p></div><button className="text-link" onClick={() => navigate('alerts')}>Ver alertas <ArrowRight size={16}/></button></div><StockTable items={alertStock.slice(0, 6)} data={data} compact onSelect={openLot}/></section><section className="panel activity-panel"><div className="panel-head"><div><h2>Últimas movimentações</h2><p>Registros feitos no protótipo.</p></div></div><MovementList items={data.movements.slice(0, 5)} catalog={products}/><button className="panel-footer" onClick={() => navigate('movements')}>Ver todas as movimentações <ArrowRight size={16}/></button></section></div>
         </>}
-        {page === 'stock' && <section className="panel"><div className="panel-head toolbar"><div><h2>Posição por lote e local</h2><p aria-live="polite">{filteredStock.length} de {data.stock.length} posições</p></div><div className="toolbar-filters"><label className="search"><Search size={17} aria-hidden="true"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Produto, código, lote ou local" aria-label="Buscar estoque"/>{search && <button type="button" className="icon-button" aria-label="Limpar busca" onClick={() => setSearch('')}><X size={16}/></button>}</label><select aria-label="Filtrar por situação" value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)}>{stockFilters.map((item) => <option key={item}>{item}</option>)}</select></div></div><StockTable items={filteredStock} data={data} onSelect={openMovement} empty={<><strong>Nenhuma posição encontrada.</strong>Revise a busca ou a situação selecionada.{(search || stockFilter !== 'Todas as situações') && <div><button className="button secondary" onClick={() => { setSearch(''); setStockFilter('Todas as situações'); }}>Limpar filtros</button></div>}</>}/><div className="table-foot"><span><strong>Comprometido</strong> = reservas (de pedidos e internas), bloqueio e quarentena. Vencidos nunca ficam disponíveis. Saldos guardados apenas neste navegador.</span><button onClick={resetDemo}><RotateCcw size={14}/> Restaurar demonstração</button></div></section>}
-        {page === 'stock' && <StockControls data={data} onChange={setData}/>}
-        {page === 'scan' && <div className="scan-grid"><section className="panel scan-panel"><div className="panel-head"><div><h2>Consultar por código</h2><p>Use câmera, digitação ou leitor USB/Bluetooth em modo teclado.</p></div></div><div className="scan-body"><label className="field-label" htmlFor="scan-code">Código do produto ou lote</label><div className="scan-input"><input ref={scanInputRef} id="scan-code" value={scanInput} autoComplete="off" onChange={(event) => setScanInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') findCode(); }} placeholder="Ex.: IMP-PP-001 ou PP26A091"/><button className="button primary" onClick={findCode}>Consultar</button></div><p className="field-hint">Para bipador em modo teclado, mantenha o campo ativo e leia a etiqueta. A leitura termina com Enter.</p><button className="button secondary camera-button" onClick={() => { setScanMessage(''); setCameraOn((current) => !current); }}><Barcode size={18}/>{cameraOn ? 'Fechar câmera' : 'Ler com a câmera'}</button>{cameraOn && <video ref={videoRef} className="camera-preview" autoPlay muted playsInline/>}{scanMessage && <p className="scan-message" role="status">{scanMessage}</p>}{scanMessage.startsWith('Encontrado:') && <button className="button primary" onClick={() => openMovement(selectedId)}>Registrar movimentação <ArrowRight size={16}/></button>}</div></section><aside className="scan-help"><h2>Códigos para testar</h2><p>Códigos fictícios. Selecione para preencher a consulta.</p>{data.stock.slice(0, 4).map((item) => <button key={item.id} onClick={() => { setScanInput(item.lot); setScanMessage(''); scanInputRef.current?.focus(); }}><span>{getProduct(item.productId).name}</span><code>{item.lot}</code></button>)}</aside></div>}
+        {page === 'stock' && <div className={`stock-page ${selectedLot ? 'has-selection' : ''}`}><div className="stock-workspace"><section className="panel stock-list"><div className="panel-head toolbar"><div><h2>Posição por lote e local</h2><p aria-live="polite">{filteredStock.length} de {data.stock.length} posições</p></div><div className="toolbar-filters"><label className="search"><Search size={17} aria-hidden="true"/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Produto, código, lote ou local" aria-label="Buscar estoque"/>{search && <button type="button" className="icon-button" aria-label="Limpar busca" onClick={() => setSearch('')}><X size={16}/></button>}</label><select aria-label="Filtrar por situação" value={stockFilter} onChange={(event) => setStockFilter(event.target.value as StockFilter)}>{stockFilters.map((item) => <option key={item}>{item}</option>)}</select></div></div><StockTable items={filteredStock} data={data} onSelect={openLot} selectedId={selectedLot?.id} narrow={!!selectedLot} empty={<><strong>Nenhuma posição encontrada.</strong>Revise a busca ou a situação selecionada.{(search || stockFilter !== 'Todas as situações') && <div><button className="button secondary" onClick={() => { setSearch(''); setStockFilter('Todas as situações'); }}>Limpar filtros</button></div>}</>}/><div className="table-foot"><span><strong>Comprometido</strong> = reservas (de pedidos e internas), bloqueio e quarentena. Vencidos nunca ficam disponíveis. Saldos guardados apenas neste navegador.</span><button onClick={resetDemo}><RotateCcw size={14}/> Restaurar demonstração</button></div></section>
+          {selectedLot && <LotSheet key={selectedLot.id} data={data} stockId={selectedLot.id} status={stockStatus(selectedLot, data.stock, products)} headingRef={lotHeading} onChange={setData} onClose={closeLot} onMovement={openMovement} onOpenOrder={openOrder}/>}
+          </div>
+          <div className="stock-extra"><StockControls data={data} onChange={setData} onOpenLot={openLot}/></div>
+        </div>}
+        {page === 'scan' && <div className="scan-grid"><section className="panel scan-panel"><div className="panel-head"><div><h2>Consultar por código</h2><p>Use câmera, digitação ou leitor USB/Bluetooth em modo teclado.</p></div></div><div className="scan-body"><label className="field-label" htmlFor="scan-code">Código do produto ou lote</label><div className="scan-input"><input ref={scanInputRef} id="scan-code" value={scanInput} autoComplete="off" onChange={(event) => setScanInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') findCode(); }} placeholder="Ex.: IMP-PP-001 ou PP26A091"/><button className="button primary" onClick={findCode}>Consultar</button></div><p className="field-hint">Para bipador em modo teclado, mantenha o campo ativo e leia a etiqueta. A leitura termina com Enter.</p><button className="button secondary camera-button" onClick={() => { setScanMessage(''); setCameraOn((current) => !current); }}><Barcode size={18}/>{cameraOn ? 'Fechar câmera' : 'Ler com a câmera'}</button>{cameraOn && <video ref={videoRef} className="camera-preview" autoPlay muted playsInline/>}{scanMessage && <p className="scan-message" role="status">{scanMessage}</p>}{scanMessage.startsWith('Encontrado:') && <div className="head-actions"><button className="button primary" onClick={() => openLot(selectedId)}>Abrir ficha do lote <ArrowRight size={16}/></button><button className="button secondary" onClick={() => openMovement(selectedId)}>Registrar movimentação</button></div>}</div></section><aside className="scan-help"><h2>Códigos para testar</h2><p>Códigos fictícios. Selecione para preencher a consulta.</p>{data.stock.slice(0, 4).map((item) => <button key={item.id} onClick={() => { setScanInput(item.lot); setScanMessage(''); scanInputRef.current?.focus(); }}><span>{getProduct(item.productId).name}</span><code>{item.lot}</code></button>)}</aside></div>}
         {page === 'movements' && <section className="panel"><div className="panel-head"><div><h2>Histórico de movimentações</h2><p>{data.movements.length} registros neste navegador, do mais recente ao mais antigo.</p></div></div><div className="table-scroll"><table className="data-table movement-table"><thead><tr><th>Data e hora</th><th>Tipo</th><th>Produto</th><th>Lote</th><th className="num">Quantidade</th><th>Origem / destino</th><th>Responsável</th></tr></thead><tbody>{data.movements.length ? data.movements.map((item) => <tr key={item.id}><td data-label="Data e hora">{new Date(item.date).toLocaleString('pt-BR')}</td><td data-label="Tipo"><MovementLabel type={item.type}/></td><td className="cell-strong">{getProduct(item.productId).name}{item.orderId && <small>{item.reason}</small>}</td><td className="mono" data-label="Lote">{item.lot}</td><td className="num" data-label="Quantidade">{item.quantity} un.</td><td className="wide" data-label="Origem / destino">{item.from ? item.from : '—'}{item.to ? ` → ${item.to}` : ''}</td><td data-label="Responsável">{item.actor}</td></tr>) : <tr><td colSpan={7} className="empty-state">Nenhuma movimentação registrada.</td></tr>}</tbody></table></div></section>}
-        {page === 'alerts' && <section className="panel"><div className="panel-head"><div><h2>Pontos de atenção</h2><p>Ordenados pela validade mais próxima.</p></div><span className="count-label">{alertStock.length} registros</span></div><StockTable items={alertStock} data={data} onSelect={openMovement} empty={<><strong>Nenhum alerta pelas regras demonstrativas.</strong>Todas as posições estão regulares.</>}/><div className="table-foot">Regras ilustrativas. Critérios reais dependem da operação e da área da qualidade.</div></section>}
+        {page === 'alerts' && <section className="panel"><div className="panel-head"><div><h2>Pontos de atenção</h2><p>Ordenados pela validade mais próxima.</p></div><span className="count-label">{alertStock.length} registros</span></div><StockTable items={alertStock} data={data} onSelect={openLot} empty={<><strong>Nenhum alerta pelas regras demonstrativas.</strong>Todas as posições estão regulares.</>}/><div className="table-foot">Regras ilustrativas. Critérios reais dependem da operação e da área da qualidade.</div></section>}
         <footer className="page-footer">Conceito de estoque para Jusimed · Protótipo independente e não oficial · Dados fictícios</footer>
       </div>
     </main>
@@ -209,14 +251,16 @@ export default function App() {
   </div>;
 }
 
-function StockTable({ items, data, compact = false, onSelect, empty }: { items: Stock[]; data: DemoData; compact?: boolean; onSelect: (id: string) => void; empty?: React.ReactNode }) {
+function StockTable({ items, data, compact = false, narrow = false, selectedId, onSelect, empty }: { items: Stock[]; data: DemoData; compact?: boolean; narrow?: boolean; selectedId?: string; onSelect: (id: string) => void; empty?: React.ReactNode }) {
   const getProduct = (id: string) => findProduct(id, data.products);
-  return <div className="table-scroll"><table className={`data-table stock-table ${compact ? 'compact-table' : ''}`}><thead><tr><th>Produto</th><th className="col-code">Código</th><th>Lote · validade</th><th>Localização</th><th className="num">Físico</th><th className="num">Disponível</th>{!compact && <th>Comprometido</th>}<th>Situação</th><th><span className="sr-only">Ação</span></th></tr></thead><tbody>{items.length ? items.map((item) => {
+  const showCommitted = !compact && !narrow;
+  return <div className="table-scroll"><table className={`data-table stock-table ${compact ? 'compact-table' : ''} ${narrow ? 'is-narrow' : ''}`}><thead><tr><th>Produto</th><th className="col-code">Código</th><th>Lote · validade</th><th>Localização</th><th className="num">Físico</th><th className="num">Disponível</th>{showCommitted && <th>Comprometido</th>}<th>Situação</th><th><span className="sr-only">Ficha do lote</span></th></tr></thead><tbody>{items.length ? items.map((item) => {
     const status = stockStatus(item, data.stock, data.products);
     const linked = orderReservedQuantity(data, item.id), internal = item.reserved - linked;
     const committed = [linked && { label: `Pedido ${linked}`, order: true }, internal && { label: `Interna ${internal}` }, item.blocked && { label: `Bloq. ${item.blocked}` }, item.quarantined && { label: `Quar. ${item.quarantined}` }].filter(Boolean) as { label: string; order?: boolean }[];
     const available = availableQuantity(item);
-    return <tr key={item.id}><td className="cell-strong">{getProduct(item.productId).name}<small>{getProduct(item.productId).category}</small></td><td className="mono col-code" data-label="Código">{getProduct(item.productId).code}</td><td data-label="Lote · validade"><span className="mono">{item.lot}</span><small>{formatDate(item.expiresAt)}</small></td><td data-label="Localização">{item.location}</td><td className="num" data-label="Físico">{item.quantity} un.</td><td className="num" data-label="Disponível"><strong className={available ? '' : 'is-zero'}>{available} un.</strong></td>{!compact && <td data-label="Comprometido">{committed.length ? <span className="commit-list">{committed.map((c) => <span key={c.label} className={c.order ? 'is-order' : ''} title={c.order ? 'Reserva vinculada a pedido — liberação somente em Pedidos' : undefined}>{c.label}</span>)}</span> : <span className="is-zero">—</span>}</td>}<td data-label="Situação"><span className={`status status-${status.tone}`}>{status.label}</span></td><td className="row-cell"><button className="row-action" aria-label={`Registrar movimentação de ${getProduct(item.productId).name}, lote ${item.lot}`} title="Registrar movimentação" onClick={() => onSelect(item.id)}><ArrowRight size={17}/></button></td></tr>;
+    const isSelected = item.id === selectedId;
+    return <tr key={item.id} className={`is-clickable ${isSelected ? 'is-selected' : ''}`} onClick={(event) => { if (!(event.target as HTMLElement).closest('button, a')) onSelect(item.id); }}><td className="cell-strong">{getProduct(item.productId).name}<small>{getProduct(item.productId).category}</small></td><td className="mono col-code" data-label="Código">{getProduct(item.productId).code}</td><td data-label="Lote · validade"><span className="mono">{item.lot}</span><small>{formatDate(item.expiresAt)}</small></td><td data-label="Localização">{item.location}</td><td className="num" data-label="Físico">{item.quantity} un.</td><td className="num" data-label="Disponível"><strong className={available ? '' : 'is-zero'}>{available} un.</strong></td>{showCommitted && <td data-label="Comprometido">{committed.length ? <span className="commit-list">{committed.map((c) => <span key={c.label} className={c.order ? 'is-order' : ''} title={c.order ? 'Reserva vinculada a pedido — liberação somente em Pedidos' : undefined}>{c.label}</span>)}</span> : <span className="is-zero">—</span>}</td>}<td data-label="Situação"><span className={`status status-${status.tone}`}>{status.label}</span></td><td className="row-cell"><button className="row-action" aria-label={`Abrir ficha do lote ${item.lot}, ${getProduct(item.productId).name}`} aria-current={isSelected ? 'true' : undefined} title="Abrir ficha do lote" onClick={() => onSelect(item.id)}><ArrowRight size={17}/></button></td></tr>;
   }) : <tr><td colSpan={9} className="empty-state">{empty ?? 'Nenhum registro encontrado.'}</td></tr>}</tbody></table></div>;
 }
 
