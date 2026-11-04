@@ -8,10 +8,12 @@ Esta versão implementa os três módulos priorizados para apresentação. Dados
 | --- | --- |
 | Cadastro → Produtos | Criar e editar produto, código, especialidade, mínimo global, fabricante e fornecedor |
 | Cadastro → Novo lote | Criar uma posição por produto, lote, local e validade, com saldo inicial |
-| Cadastro → Importar planilha | Escolher .xlsx/.csv, analisar prévia e confirmar somente se todas as linhas forem válidas |
-| Estoque | Consultar físico/disponível, alterar situações com motivo, confirmar transferências e consultar histórico local |
-| Inventário físico | Localizar etiqueta, contar sem ver o esperado, justificar diferenças e revisar antes de ajustar |
-| Dashboard | Acompanhar disponível, reservas, bloqueios, quarentena, trânsito e divergências pendentes |
+| Cadastro → Importar planilha | Três etapas indicadas na tela: escolher .xlsx/.csv, validar (prévia com validade, linhas com erro destacadas e filtro “só linhas com erro”) e confirmar somente se todas as linhas forem válidas |
+| Estoque | Buscar e filtrar por situação; ver físico, disponível e comprometido (reserva de pedido, reserva interna, bloqueio, quarentena); alterar situações com motivo, confirmar transferências e consultar histórico local |
+| Inventário físico | Localizar etiqueta, contar sem ver o esperado, justificar diferenças e revisar o efeito do ajuste antes de aplicar |
+| Dashboard | Acompanhar disponível e a composição do saldo físico, trânsito, divergências e pendências de pedidos com a próxima ação |
+
+Cada área tem endereço próprio no navegador (por exemplo `#/estoque`), o que permite voltar e avançar e abrir uma área diretamente.
 
 ## Modelo de importação
 
@@ -46,7 +48,7 @@ Alterações de situação registram motivo. Há reservas internas quantitativas
 2. Confira produto, lote e localização. Códigos com várias posições exigem escolha explícita.
 3. Conte todo o físico, incluindo reservado, bloqueado e quarentena. O formulário não exibe o esperado antes de registrar.
 4. Informe justificativa se houver diferença. O registro fica pendente e não altera o estoque.
-5. Na conferência aparecem esperado, contado e diferença. Aplicar revisão simulada ajusta o físico e registra o movimento de ajuste; rejeitar preserva o saldo.
+5. Na conferência aparecem esperado, contado, diferença e a situação (Divergente, Sem divergência ou Desatualizada), além do efeito do ajuste (“o físico passa de X para Y”). **Aplicar ajuste** (ou **Confirmar contagem**, quando não há diferença) é a revisão simulada: ajusta o físico e registra o movimento de ajuste; rejeitar preserva o saldo. O botão fica desabilitado, com o motivo, quando o saldo mudou após a contagem ou a contagem é menor que o comprometido.
 
 Uma mudança posterior no saldo ou nas situações invalida a aplicação da contagem. Nesse caso, rejeite e conte novamente. Uma contagem menor que o total comprometido também exige revisão das situações antes de nova contagem.
 
