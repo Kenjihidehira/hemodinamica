@@ -1,7 +1,7 @@
 /* Dashboard (Analytics.tsx). Usa os tokens de styles.css. */
-.analytics { display: grid; gap: 16px; }
+.analytics { display: grid; gap: 18px; }
 
-.analytics-context { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--brand-900); border-radius: 8px; }
+.analytics-context { display: flex; align-items: center; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; padding: 14px 18px; background: var(--surface); border: 0; border-left: 4px solid var(--brand-800); border-radius: 16px; }
 .analytics-context > div { display: grid; gap: 1px; }
 .analytics-context-label { color: var(--muted); font-size: 12px; font-weight: 500; }
 .analytics-context strong { color: var(--brand-950); font-size: 14px; font-weight: 700; }
@@ -15,15 +15,15 @@
 .analytics-filters select { height: var(--control-h); min-width: 180px; padding: 0 32px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 13px; }
 
 /* KPIs: uma faixa, cada item é um botão para o detalhe. */
-.analytics-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.analytics-kpis > button { position: relative; display: grid; align-content: start; gap: 4px; min-width: 0; padding: 14px 16px 14px; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; }
+.analytics-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; background: transparent; }
+.analytics-kpis > button { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; min-height: 132px; padding: 20px; border: 0; border-right: 0; border-radius: 18px; background: var(--surface); color: var(--ink); text-align: left; overflow: hidden; }
 .analytics-kpis > button:last-child { border-right: 0; }
 .analytics-kpis > button:hover { background: var(--surface-soft); }
-.analytics-kpis > button::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: transparent; }
+.analytics-kpis > button::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 6px; background: var(--brand-100); }
 .analytics-kpis > button.kpi-risk::before { background: #d39a3d; }
 .analytics-kpis > button.kpi-danger::before { background: var(--brand-red); }
 .analytics-kpis > button > span { color: var(--muted); font-size: 12.5px; font-weight: 600; }
-.analytics-kpis > button > strong { color: var(--brand-950); font-size: 26px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
+.analytics-kpis > button > strong { color: var(--brand-950); font-size: 30px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
 .analytics-kpis > button > strong small { font-size: 13px; font-weight: 600; color: var(--muted); }
 .analytics-kpis > button.kpi-risk > strong { color: var(--warn); }
 .analytics-kpis > button.kpi-danger > strong { color: var(--danger); }
@@ -100,7 +100,7 @@
 .trend-row > strong, .quality-row > strong { text-align: right; color: var(--ink); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .quality-row .chart-track > div { background: #6f80bb; }
 
-.analytics-data-note { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 8px; }
+.analytics-data-note { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; background: var(--surface); border: 0; border-radius: 18px; }
 .analytics-data-icon { color: var(--brand-900); padding-top: 2px; }
 .analytics-data-note h2 { font-size: 14px; margin-bottom: 4px; }
 .analytics-data-note p { max-width: 760px; color: var(--muted); font-size: 13px; line-height: 1.55; }
@@ -112,8 +112,6 @@
 
 @media (max-width: 1320px) {
   .analytics-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .analytics-kpis > button:nth-child(3n) { border-right: 0; }
-  .analytics-kpis > button:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
 }
 @media (max-width: 1100px) {
   .analytics-split, .analytics-grid { grid-template-columns: 1fr; }
@@ -131,10 +129,8 @@
   .analytics-context > small { display: none; }
   .analytics-filters select { min-height: 44px; font-size: 16px; }
   .analytics-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .analytics-kpis > button { padding: 12px; border-bottom: 1px solid var(--line); }
-  .analytics-kpis > button:nth-child(3n) { border-right: 1px solid var(--line); }
-  .analytics-kpis > button:nth-child(2n) { border-right: 0; }
-  .analytics-kpis > button:nth-child(n+5) { border-bottom: 0; }
+  .analytics-kpis { gap: 12px; }
+  .analytics-kpis > button { min-height: 126px; padding: 16px; border-bottom: 0; }
   .analytics-kpis > button > strong { font-size: 22px; }
   .composition-bar { margin-inline: 16px; }
   .composition-legend { padding-inline: 8px; }

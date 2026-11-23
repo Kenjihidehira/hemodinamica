@@ -2,13 +2,11 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, ChevronDown, CircleAlert, Database, Info } from 'lucide-react';
 import { availableQuantity, daysToExpiry, formatDate, getProduct, orderReservedQuantity, type DemoData } from './data';
 
-import { orderMetrics } from './orderDomain';
-import type { OrderFilter } from './OrderWorkspace';
 
 type Unit = string;
 const number = new Intl.NumberFormat('pt-BR');
 
-export default function Analytics({ data, onViewLot, onViewAlerts, onViewStock, onViewMovements, onViewCounts, onViewOrders }: { data: DemoData; onViewLot: (stockId: string) => void; onViewAlerts: () => void; onViewStock: () => void; onViewMovements: () => void; onViewCounts: () => void; onViewOrders: (filter: OrderFilter, unit: string) => void }) {
+export default function Analytics({ data, onViewLot, onViewAlerts, onViewStock, onViewMovements, onViewCounts }: { data: DemoData; onViewLot: (stockId: string) => void; onViewAlerts: () => void; onViewStock: () => void; onViewMovements: () => void; onViewCounts: () => void }) {
   const [unit, setUnit] = useState<Unit>('Todas as unidades');
   const [period, setPeriod] = useState(30);
   const [moreOpen, setMoreOpen] = useState(false); // Só tem efeito no celular; no desktop tudo fica visível.
@@ -58,14 +56,13 @@ export default function Analytics({ data, onViewLot, onViewAlerts, onViewStock, 
     return { physical, reserved, orderReserved, expiredFree, blocked, quarantined, inTransit, pendingCounts: pendingCounts.length, divergentCounts, available, activePositions: active.length, expiringUnits, expiringLots: expiring.length, expiredUnits, lowCount: low.length, entry, exit, transfers, movementCount: movements.length, categories, networkTotal, units, priorities, trend, quality, positionCount: stock.length };
   }, [data, unit, period]);
 
-  const orders = orderMetrics(data, unit);
   const flowMax = Math.max(model.entry, model.exit, 1);
   const periodLabel = period === 1 ? '24 horas' : `${period} dias`;
   const flowPeriod = period === 1 ? 'nas últimas 24 horas' : `nos últimos ${period} dias`;
   const trendMax = Math.max(1, ...model.trend.map((item) => item.count));
   const composition = [
     { key: 'available', label: 'Disponível para saída', value: model.available, action: onViewStock },
-    { key: 'order', label: 'Reservado para pedidos', value: model.orderReserved, action: () => onViewOrders('Abertos', unit) },
+    { key: 'order', label: 'Reservado em fluxo', value: model.orderReserved, action: onViewStock },
     { key: 'internal', label: 'Reserva interna', value: model.reserved - model.orderReserved, action: onViewStock },
     { key: 'blocked', label: 'Bloqueado', value: model.blocked, action: onViewStock },
     { key: 'quarantine', label: 'Quarentena', value: model.quarantined, action: onViewStock },
@@ -88,7 +85,7 @@ export default function Analytics({ data, onViewLot, onViewAlerts, onViewStock, 
         <ul className="composition-legend">{composition.map((c) => <li key={c.key}><button type="button" onClick={c.action} className={c.value ? '' : 'is-empty'}><span className={`swatch seg-${c.key}`} aria-hidden="true"/><span>{c.label}</span><strong>{number.format(c.value)} un.</strong></button></li>)}</ul>
         <div className="composition-extra"><span>Em trânsito <strong>{model.inTransit} un.</strong></span><button type="button" className="text-link" onClick={onViewCounts}>{model.divergentCounts ? `${model.divergentCounts} ${model.divergentCounts === 1 ? 'contagem divergente' : 'contagens divergentes'} para revisar` : `Contagens: ${model.pendingCounts} pendente${model.pendingCounts === 1 ? '' : 's'}`} <ArrowRight size={14}/></button></div>
       </section>
-      <section className="panel orders-dashboard"><div className="panel-head"><div><h2>Atendimento de pedidos</h2><p>Pendências atuais da origem selecionada, incluindo atrasados.</p></div><button className="text-link" onClick={() => onViewOrders('Abertos', unit)}>Ver pedidos <ArrowRight size={16}/></button></div><div className="orders-dashboard-grid"><button onClick={() => onViewOrders('Abertos', unit)}><span>Pedidos em aberto</span><strong>{orders.open}</strong><small>Abrir lista</small></button><button className={orders.incomplete ? 'needs-action' : ''} onClick={() => onViewOrders('Reserva incompleta', unit)}><span>Reserva incompleta</span><strong>{orders.incomplete}</strong><small>{orders.incomplete ? 'Reservar lotes' : 'Sem pendência'}</small></button><button className={orders.urgent ? 'needs-action' : ''} onClick={() => onViewOrders('Prazo próximo', unit)}><span>Prazo em até 3 dias</span><strong>{orders.urgent}</strong><small>{orders.urgent ? 'Priorizar separação' : 'Sem pendência'}</small></button><button className={orders.ready ? 'is-ready' : ''} onClick={() => onViewOrders('Prontos', unit)}><span>Prontos para expedir</span><strong>{orders.ready}</strong><small>{orders.ready ? 'Registrar expedição' : 'Nenhum pronto'}</small></button></div></section>
+      <section className="panel orders-dashboard"><div className="panel-head"><div><h2>Controle de inventário</h2><p>Contagens e movimentações consolidadas na mesma área.</p></div><button className="text-link" onClick={onViewCounts}>Abrir inventário <ArrowRight size={16}/></button></div><div className="orders-dashboard-grid"><button onClick={onViewCounts}><span>Contagens pendentes</span><strong>{model.pendingCounts}</strong><small>Revisar contagens</small></button><button className={model.divergentCounts ? 'needs-action' : ''} onClick={onViewCounts}><span>Divergências</span><strong>{model.divergentCounts}</strong><small>{model.divergentCounts ? 'Exige conferência' : 'Sem divergência'}</small></button><button onClick={onViewMovements}><span>Movimentações</span><strong>{data.movements.length}</strong><small>Abrir histórico</small></button><button className="is-ready" onClick={onViewMovements}><span>Transferências</span><strong>{data.movements.filter((item) => item.type === 'Transferência').length}</strong><small>Ver registros</small></button></div></section>
     </div>
     <div className="analytics-grid">
       <section className="panel analytics-panel priority-panel"><div className="panel-head"><div><h2>Atenção da gestão</h2><p>Pendências objetivas, sem nota de risco artificial.</p></div><button className="text-link analytics-link" onClick={onViewAlerts}>Ver alertas <ArrowRight size={16}/></button></div>{model.priorities.length ? <div className="priority-list">{model.priorities.map((item, index) => <button className="priority-row" type="button" onClick={() => item.lotId ? onViewLot(item.lotId) : onViewAlerts()} title={item.lotId ? 'Abrir ficha do lote' : 'Ver alertas'} key={item.key}><span className="priority-number">{String(index + 1).padStart(2, '0')}</span><span className="priority-copy"><strong>{item.title}</strong><small>{item.detail}</small></span><span className="priority-action">{item.action}</span><ArrowRight size={14} aria-hidden="true"/></button>)}</div> : <div className="analytics-empty">Nenhuma prioridade pelas regras demonstrativas neste filtro.</div>}</section>
