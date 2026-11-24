@@ -84,13 +84,6 @@
 .hospital-notifications article.is-read { border-left-color: transparent; background: var(--surface-soft); }
 .hospital-notifications p { font-size: 12px; margin: 5px 0; }
 .hospital-notifications small { color: var(--muted); }
-.bot-message { padding: 16px; border: 1px solid var(--line); border-radius: 6px; max-width: 95%; }
-.bot-message strong { display: block; font-size: 11px; margin-bottom: 7px; color: var(--brand-900); }
-.bot-message p { font-size: 13px; }
-.bot-message small { display: block; margin-top: 8px; color: var(--muted); }
-.patient-message { align-self: flex-end; background: var(--surface-soft); }
-.integration-state { padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-.integration-state strong { display: block; margin-bottom: 6px; color: var(--ink); }
 .profile-workspace { align-items: start; }
 .profile-directory { min-width: 0; }
 .profile-photo-field { display: flex; align-items: center; gap: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-soft); }

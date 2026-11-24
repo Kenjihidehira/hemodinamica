@@ -4,41 +4,53 @@
 
 Este protótipo mantém uma agenda local no navegador, separada dos dados do estoque. Os registros são fictícios e ficam no `localStorage` com a chave `hospital-agenda-demo-v1`.
 
+Esta versão contém **somente o sistema** (agenda, perfis, configurações e estoque). A integração com um bot de atendimento ficou fora deste protótipo.
+
 A agenda permite:
 
 - cadastrar pacientes para finalidade administrativa, sem prontuário clínico;
-- cadastrar profissionais, especialidades, unidades, salas, dias e duração das consultas;
+- cadastrar profissionais, especialidades, unidades, salas, dias e grade de atendimento;
 - consultar horários livres e impedir conflitos de profissional, paciente e sala;
 - agendar e reagendar mantendo histórico e referência;
 - confirmar, registrar chegada, iniciar e concluir atendimento;
 - cancelar com motivo ou registrar ausência;
 - gerar notificações internas para os responsáveis configurados;
-- personalizar o nome, a cor, o fuso, o expediente e os módulos visíveis;
-- simular o fluxo de agendamento fora do expediente pelo WhatsApp.
+- personalizar o nome, a cor, o fuso, o expediente e os módulos visíveis.
 
-## Simulação do WhatsApp
+## Critérios de ocupação dos profissionais
 
-O fluxo local representa as etapas que a integração futura deverá executar:
+Os critérios de ocupação são **tipos de consulta** e **encaixes**, configurados por profissional.
 
-1. identificar paciente, profissional, data e sala;
-2. consultar os horários realmente livres;
-3. oferecer um horário por até dez minutos;
-4. exigir confirmação explícita do paciente;
-5. verificar novamente a disponibilidade;
-6. registrar a consulta com origem `WhatsApp`;
-7. gerar avisos internos para os responsáveis.
+**Tipos de consulta** (ex.: Primeira consulta, Retorno, Pós-operatório):
 
-A oferta não reserva o horário. Se a recepção utilizar o intervalo antes da confirmação, o agendamento automático é recusado e uma nova consulta de disponibilidade será necessária.
+- **Duração própria.** A consulta ocupa a duração do tipo; o campo "duração" do profissional passa a ser o passo da grade.
+- **Limite por dia** (opcional). Conta só consultas ativas e normais; cancelamentos e faltas liberam a vaga, e encaixes não entram nessa conta.
+- **Prazo de retorno** (opcional). Exige consulta concluída com o mesmo profissional nos últimos N dias.
+
+**Encaixes:**
+
+- O profissional aceita ou não encaixes, com limite diário e lista de tipos aceitos (vazia = todos).
+- O encaixe **nunca fica sobreposto** a outra consulta. Ele só entra em intervalo realmente livre, fora dos horários da grade normal, e depois de marcado bloqueia esses horários.
+- **Só a recepção marca encaixe**, sempre com motivo.
+- Um **pedido de encaixe** (lista de espera) não reserva horário: avisa os responsáveis e aguarda a recepção aprovar (escolhendo horário e sala) ou recusar (com motivo).
+
+A função `occupancyCriteria` resume, por profissional e dia, as vagas por tipo e os encaixes restantes.
+
+Agendas salvas antes dessas regras continuam abrindo: um profissional sem tipos cadastrados atende uma "Consulta" com a duração da grade, e encaixes ficam desativados.
 
 ## Limites desta etapa
 
-- Não há conexão com WhatsApp Business ou modelo de IA.
-- Nenhuma mensagem externa é enviada.
+- Não há bot de atendimento, conexão com WhatsApp Business ou modelo de IA.
+- Nenhuma mensagem externa é enviada. O status `Pendente de integração` nos avisos aos responsáveis é apenas o estado planejado para um envio futuro.
 - Não há banco central, autenticação ou compartilhamento entre dispositivos.
-- O aviso `Pendente de integração` é apenas o estado planejado para o envio futuro.
 - Dados de abas diferentes usam controle de revisão para evitar sobrescrita silenciosa, mas `localStorage` continua inadequado para produção multiusuário.
 - A agenda não contém prontuário, convênios, autorizações, faturamento, internação ou dados clínicos.
 
 ## Verificação
 
-Os testes automatizados cobrem conflitos e sobreposições, jornada do profissional, passado, transições do atendimento, cancelamento, reagendamento, responsáveis, validação da base salva, expiração da oferta e revalidação antes da confirmação pelo fluxo simulado.
+Os testes automatizados cobrem:
+
+- conflitos e sobreposições, jornada do profissional, passado, transições do atendimento, cancelamento, reagendamento, responsáveis e validação da base salva;
+- tipos de consulta (duração, limite diário, prazo de retorno);
+- encaixes (intervalo livre, tipos aceitos, limite diário, pedidos e aprovação);
+- o resumo de ocupação e a abertura de agendas salvas antes dessas regras.

@@ -1,4 +1,8 @@
-export type Product = { id: string; name: string; code: string; category: string; minimum: number; manufacturer?: string; supplier?: string };
+/**
+ * consigned: material do fornecedor guardado no hospital; cada uso gera reposição (ver hemodinâmica).
+ * implantable: fica no paciente (ex.: stent); o uso exige número de série e entra na rastreabilidade do implante.
+ */
+export type Product = { id: string; name: string; code: string; category: string; minimum: number; manufacturer?: string; supplier?: string; consigned?: boolean; implantable?: boolean; anvisaRegistry?: string };
 export type Stock = { id: string; productId: string; lot: string; location: string; expiresAt: string; quantity: number; reserved: number; blocked: number; quarantined: number; revision: number };
 export type Movement = { id: string; type: 'Entrada' | 'Saída' | 'Transferência' | 'Recebimento' | 'Ajuste'; productId: string; lot: string; quantity: number; from?: string; to?: string; date: string; actor: string; reason?: string; orderId?: string };
 export type Count = { id: string; stockId: string; expected: number; counted: number; revision: number; reason: string; date: string; status: 'Pendente' | 'Aplicada' | 'Rejeitada'; reviewedAt?: string };
@@ -47,6 +51,39 @@ export function makeDemoData(): DemoData {
 }
 
 export const storageKey = 'nexo-estoque-demo-v1';
+
+/** Materiais da hemodinâmica no mesmo catálogo e estoque do hospital. Dados fictícios. */
+export const HEMO_CATEGORY = 'Hemodinâmica';
+export const HEMO_LOCATION = 'Hemodinâmica · Armário de materiais';
+export const hemoProducts: Product[] = [
+  { id: 'hem-1', name: 'Introdutor radial 6F', code: 'HEM-IR6-001', category: HEMO_CATEGORY, minimum: 10, supplier: 'Fornecedor Alfa', consigned: false },
+  { id: 'hem-2', name: 'Cateter diagnóstico JL4 6F', code: 'HEM-JL4-002', category: HEMO_CATEGORY, minimum: 6, supplier: 'Fornecedor Alfa', consigned: false },
+  { id: 'hem-3', name: 'Fio-guia coronário 0,014"', code: 'HEM-FG14-003', category: HEMO_CATEGORY, minimum: 4, supplier: 'Fornecedor Beta', consigned: true },
+  { id: 'hem-4', name: 'Balão de pré-dilatação 2,5 × 15 mm', code: 'HEM-BP25-004', category: HEMO_CATEGORY, minimum: 3, supplier: 'Fornecedor Beta', consigned: true },
+  { id: 'hem-5', name: 'Stent farmacológico 3,0 × 18 mm', code: 'HEM-SF30-005', category: HEMO_CATEGORY, minimum: 3, supplier: 'Fornecedor Gama', consigned: true, implantable: true, anvisaRegistry: 'Registro fictício 0000000005' },
+  { id: 'hem-6', name: 'Stent farmacológico 3,5 × 23 mm', code: 'HEM-SF35-006', category: HEMO_CATEGORY, minimum: 2, supplier: 'Fornecedor Gama', consigned: true, implantable: true, anvisaRegistry: 'Registro fictício 0000000006' },
+  { id: 'hem-7', name: 'Pulseira de compressão radial', code: 'HEM-PCR-007', category: HEMO_CATEGORY, minimum: 10, supplier: 'Fornecedor Alfa', consigned: false },
+];
+function hemoPositions(): Stock[] {
+  return ([
+    ['hs-1', 'hem-1', 'IR6-2611', 240, 18], ['hs-2', 'hem-2', 'JL4-2607', 20, 4], ['hs-3', 'hem-2', 'JL4-2702', 300, 6], ['hs-4', 'hem-3', 'FG14-2610', 180, 5],
+    ['hs-5', 'hem-4', 'BP25-2609', 150, 3], ['hs-6', 'hem-5', 'SF30-2612', 400, 3], ['hs-7', 'hem-6', 'SF35-2701', 420, 2], ['hs-8', 'hem-7', 'PCR-2608', 90, 8],
+  ] as const).map(([id, productId, lot, days, quantity]) => ({ id, productId, lot, location: HEMO_LOCATION, expiresAt: dateAfter(days), quantity, reserved: 0, blocked: 0, quarantined: 0, revision: 0 }));
+}
+/**
+ * Acrescenta os materiais da hemodinâmica ao estoque, uma única vez e só o que falta.
+ * Não altera nem remove produtos, saldos ou movimentações existentes. Nos produtos de demonstração já salvos,
+ * só preenche os campos de implante que nunca foram definidos (versões antigas não os tinham).
+ */
+export function withHemoCatalog(data: DemoData): DemoData {
+  const missing = hemoProducts.filter((p) => !data.products.some((existing) => existing.id === p.id));
+  const lacksImplantFields = (p: Product) => hemoProducts.some((h) => h.id === p.id && h.implantable !== undefined && p.implantable === undefined);
+  if (!missing.length && !data.products.some(lacksImplantFields)) return data;
+  const ids = new Set(missing.map((p) => p.id));
+  const positions = hemoPositions().filter((s) => ids.has(s.productId) && !data.stock.some((existing) => existing.id === s.id));
+  const filled = data.products.map((p) => { if (!lacksImplantFields(p)) return p; const h = hemoProducts.find((x) => x.id === p.id)!; return { ...p, implantable: h.implantable, anvisaRegistry: p.anvisaRegistry ?? h.anvisaRegistry }; });
+  return { ...data, products: [...filled, ...missing.map((p) => ({ ...p }))], stock: [...data.stock, ...positions] };
+}
 
 export function getProduct(id: string, catalog: Product[] = products) { return catalog.find((product) => product.id === id)!; }
 

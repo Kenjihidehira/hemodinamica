@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, LayoutDashboard, Menu, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
-import { availableQuantity, daysToExpiry, formatDate, getProduct as findProduct, makeDemoData, normalizeData, orderReservedQuantity, storageKey, type DemoData, type Movement, type Stock, type Product } from './data';
+import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, Menu, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
+import { availableQuantity, daysToExpiry, formatDate, getProduct as findProduct, makeDemoData, normalizeData, orderReservedQuantity, storageKey, withHemoCatalog, type DemoData, type Movement, type Stock, type Product } from './data';
 import Analytics from './Analytics';
 import Catalog from './Catalog';
 import Inventory from './Inventory';
@@ -11,11 +11,14 @@ import { csvCell } from './importing';
 import HospitalWorkspace from './hospital/HospitalWorkspace';
 import { readNotification } from './hospital/domain';
 import { useHospital } from './hospital/useHospital';
+import HemoWorkspace from './hemo/HemoWorkspace';
+import { useHemo } from './hemo/useHemo';
 
-type Page = 'agenda' | 'profiles' | 'analytics' | 'overview' | 'stock' | 'scan' | 'alerts' | 'catalog' | 'counts';
+type Page = 'hemo' | 'agenda' | 'profiles' | 'analytics' | 'overview' | 'stock' | 'scan' | 'alerts' | 'catalog' | 'counts';
 type MovementType = Movement['type'];
 type NavigationItem = { page: Page; slug: string; label: string; icon: typeof Boxes };
 const routes: NavigationItem[] = [
+  { page: 'hemo', slug: 'hemodinamica', label: 'Hemodinâmica', icon: HeartPulse },
   { page: 'agenda', slug: 'agenda', label: 'Agenda e atendimento', icon: CalendarDays },
   { page: 'analytics', slug: 'dashboard', label: 'Dashboard', icon: ChartNoAxesCombined },
   { page: 'overview', slug: 'operacao', label: 'Operação', icon: LayoutDashboard },
@@ -38,6 +41,7 @@ const stockPages = new Set<Page>(stockSections.map((item) => item.page));
 const primaryNav: NavigationItem[] = [
   routes[0],
   routes[1],
+  routes[2],
   { page: 'overview', slug: 'operacao', label: 'Estoque', icon: Boxes },
 ];
 type Route = { page: Page; lotId?: string };
@@ -50,8 +54,9 @@ function parseHash(): Route {
 }
 /** Abaixo de 1280 px a ficha do lote ocupa a tela em vez de ficar ao lado da lista (ver modules.css). */
 const narrowScreen = () => window.matchMedia('(max-width: 1279px)').matches;
-const pageTitle: Record<Page, string> = { agenda: 'Agenda e atendimento', profiles: 'Perfis de atendimento', analytics: 'Visão estratégica do estoque', overview: 'Operação de estoque', stock: 'Estoque por lote', scan: 'Leitura de código', alerts: 'Alertas de estoque', catalog: 'Cadastro e importação', counts: 'Inventário físico' };
+const pageTitle: Record<Page, string> = { hemo: 'Hemodinâmica', agenda: 'Agenda e atendimento', profiles: 'Perfis de atendimento', analytics: 'Visão estratégica do estoque', overview: 'Operação de estoque', stock: 'Estoque por lote', scan: 'Leitura de código', alerts: 'Alertas de estoque', catalog: 'Cadastro e importação', counts: 'Inventário físico' };
 const pageSubtitle: Record<Page, string> = {
+  hemo: 'Do pedido ao faturamento: autorização, sala, preparo, materiais por paciente, laudo com copilot e notas.',
   agenda: 'Consultas, horários, fluxo de atendimento e notificações em uma agenda única.',
   profiles: 'Cadastros administrativos de pacientes e profissionais da equipe.',
   analytics: 'Disponibilidade de dispositivos, exposição por validade e pendências entre unidades.',
@@ -70,10 +75,10 @@ function initialData(): DemoData {
     const saved = localStorage.getItem(storageKey);
     if (saved) {
       const parsed = JSON.parse(saved) as DemoData;
-      if (Array.isArray(parsed.stock) && Array.isArray(parsed.movements)) return normalizeData(parsed);
+      if (Array.isArray(parsed.stock) && Array.isArray(parsed.movements)) return withHemoCatalog(normalizeData(parsed));
     }
   } catch { /* Demo resets if browser storage is unavailable. */ }
-  return makeDemoData();
+  return withHemoCatalog(makeDemoData());
 }
 
 function stockStatus(stock: Stock, all: Stock[], catalog: Product[]) {
@@ -99,13 +104,14 @@ function downloadCsv(data: DemoData) {
 
 export default function App() {
   const hospital = useHospital();
+  const hemo = useHemo();
   const hospitalConfig = hospital.data?.config;
   const [data, setData] = useState<DemoData>(initialData);
   const products = data.products;
   const getProduct = (id: string) => findProduct(id, products);
   const [storageWarning, setStorageWarning] = useState(false);
   const [route, setRoute] = useState<Route>(parseHash);
-  const page = hospitalConfig?.stockEnabled === false && !['agenda', 'profiles'].includes(route.page) ? 'agenda' : route.page;
+  const page = hospitalConfig?.stockEnabled === false && !['hemo', 'agenda', 'profiles'].includes(route.page) ? 'agenda' : route.page;
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
@@ -230,11 +236,11 @@ export default function App() {
     if (found) { setSelectedId(found.id); setScanMessage(`Encontrado: ${getProduct(found.productId).name} · lote ${found.lot}.`); }
     else setScanMessage('Código não encontrado nos dados de demonstração.');
   }
-  function resetDemo() { if (window.confirm('Restaurar os dados fictícios e apagar as movimentações feitas neste navegador?')) { setData(makeDemoData()); setSuccess('Dados de demonstração restaurados.'); } }
+  function resetDemo() { if (window.confirm('Restaurar os dados fictícios e apagar as movimentações feitas neste navegador?')) { setData(withHemoCatalog(makeDemoData())); setSuccess('Dados de demonstração restaurados.'); } }
 
-  const visibleNav = primaryNav.filter((item) => hospitalConfig?.stockEnabled !== false || ['agenda', 'profiles'].includes(item.page));
+  const visibleNav = primaryNav.filter((item) => hospitalConfig?.stockEnabled !== false || ['hemo', 'agenda', 'profiles'].includes(item.page));
   const searchableAreas = hospitalConfig?.stockEnabled === false
-    ? routes.filter((item) => ['agenda', 'profiles'].includes(item.page))
+    ? routes.filter((item) => ['hemo', 'agenda', 'profiles'].includes(item.page))
     : routes;
   const quickMatches = quickSearch.trim()
     ? searchableAreas.filter((item) => item.label.toLocaleLowerCase('pt-BR').includes(quickSearch.trim().toLocaleLowerCase('pt-BR'))).slice(0, 5)
@@ -258,7 +264,7 @@ export default function App() {
     <main className="main">
       <div className="content" id="conteudo" tabIndex={-1}>
         <div className="page-head">
-          <div className="page-title-block"><div className="breadcrumb">{page === 'analytics' ? 'Gestão' : stockPages.has(page) ? 'Estoque' : page === 'profiles' ? 'Atendimento' : 'Operação'} <span>/</span> {pageTitle[page]}</div><h1>{pageTitle[page]}</h1><p className="subhead">{pageSubtitle[page]}</p></div>
+          <div className="page-title-block"><div className="breadcrumb">{page === 'analytics' ? 'Gestão' : page === 'hemo' ? 'Assistência' : stockPages.has(page) ? 'Estoque' : page === 'profiles' ? 'Atendimento' : 'Operação'} <span>/</span> {pageTitle[page]}</div><h1>{pageTitle[page]}</h1><p className="subhead">{pageSubtitle[page]}</p></div>
           <div className="shell-tools">
             <div className="quick-search-wrap">
               <label className="quick-search"><Search size={18} aria-hidden="true"/><span className="sr-only">Buscar área do sistema</span><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Buscar área do sistema"/></label>
@@ -270,6 +276,7 @@ export default function App() {
         </div>
         {stockPages.has(page) && <nav className="stock-section-nav" aria-label="Seções do estoque">{stockSections.map(({ page: target, label, icon: Icon }) => <button key={target} type="button" aria-current={page === target ? 'page' : undefined} onClick={() => navigate(target)}><Icon size={17} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span>{target === 'alerts' && alertStock.length > 0 && <strong aria-label={`${alertStock.length} alertas`}>{alertStock.length}</strong>}</button>)}</nav>}
         <div className="page-actions-row"><div className="head-actions">{page === 'stock' && <button className="button secondary" onClick={() => downloadCsv(data)}><Download size={16}/> Exportar CSV</button>}{page === 'analytics' && <button className="button secondary" onClick={() => navigate('stock')}>Ver estoque <ArrowRight size={16}/></button>}{['overview', 'stock', 'alerts'].includes(page) && <button className="button primary" onClick={() => openMovement()}><Plus size={17}/> Nova movimentação</button>}</div></div>
+        {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot}/>}
         {page === 'agenda' && <HospitalWorkspace key="agenda" store={hospital}/>}
         {page === 'profiles' && <HospitalWorkspace key="profiles" store={hospital} profiles/>}
         {storageWarning && <p role="alert" className="module-error">Não foi possível salvar no navegador. As alterações desta sessão podem ser perdidas ao fechar a página.</p>}

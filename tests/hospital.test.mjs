@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeHospitalData, parseHospitalData, bookAppointment, bookingProblem, availableSlots, changeAppointmentStatus, rescheduleAppointment, savePatient, saveProfessional, saveHospitalConfig, addHospitalResource, saveResponsible, readNotification, offerBotSlot, confirmBotSlot, isOutsideBusinessHours } from '../src/hospital/domain.ts';
+import { makeHospitalData, parseHospitalData, bookAppointment, bookingProblem, availableSlots, changeAppointmentStatus, rescheduleAppointment, savePatient, saveProfessional, saveHospitalConfig, addHospitalResource, saveResponsible, readNotification, consultationTypes, fitInProblem, fitInSlots, bookFitIn, requestFitIn, approveFitIn, rejectFitIn, occupancyCriteria } from '../src/hospital/domain.ts';
 
 const now = new Date('2026-11-23T23:00:00Z'); // Segunda, 20h em São Paulo.
 const base = () => makeHospitalData(now);
@@ -82,28 +82,106 @@ test('hospital: não muda grade de profissional com consultas abertas', () => {
   assert.throws(() => saveProfessional(data, { ...data.professionals[0], duration: 45 }), /consultas abertas/);
   assert.equal(saveProfessional(data, { ...data.professionals[0], name: 'Novo nome' }).professionals[0].name, 'Novo nome');
 });
-test('WhatsApp local: somente fora do expediente, exige confirmação e respeita expiração', () => {
-  const data = base(), business = new Date('2026-11-23T15:00:00Z');
-  assert.equal(isOutsideBusinessHours(data, now), true); assert.equal(isOutsideBusinessHours(data, business), false);
-  assert.throws(() => offerBotSlot(data, booking(), business), /expediente/);
-  const offer = offerBotSlot(data, booking(), now);
-  assert.throws(() => confirmBotSlot(data, offer, false, now), /explícita/);
-  assert.throws(() => confirmBotSlot(data, offer, true, new Date(now.getTime() + 11 * 60000)), /expirada/);
-  const result = confirmBotSlot(data, offer, true, now);
-  assert.equal(result.appointments.at(-1).source, 'WhatsApp');
-  assert.equal(result.notifications.length, 1);
-});
-test('WhatsApp local: revalida oferta quando recepção ocupa horário e impede confirmação duplicada', () => {
-  const data = base(), offer = offerBotSlot(data, booking(), now);
-  const occupied = bookAppointment(data, booking(), 'Recepção', now);
-  assert.throws(() => confirmBotSlot(occupied, offer, true, now), /profissional/);
-  const booked = confirmBotSlot(data, offer, true, now);
-  assert.throws(() => confirmBotSlot(booked, offer, true, now), /profissional/);
-  assert.throws(() => confirmBotSlot({ ...data, config: { ...data.config, botEnabled: false } }, offer, true, now), /desativado/);
-});
 test('hospital: base salva inválida não é aceita ou convertida silenciosamente em dados fictícios', () => {
   const data = base();
   assert.throws(() => parseHospitalData({ ...data, appointments: [{ ...data.appointments[0], patientId: 'missing' }] }), /Vínculos/);
   assert.throws(() => parseHospitalData({ ...data, appointments: [{ ...data.appointments[0], date: '2026-02-30' }] }));
   assert.throws(() => parseHospitalData({ ...data, appointments: [...data.appointments, { ...data.appointments[0], id: 'another' }] }), /Conflito/);
+});
+
+/* ── Critérios de ocupação: tipos de consulta e encaixes ── */
+const concluded = (extra = {}) => ({ id: 'past-1', patientId: 'pat-2', professionalId: 'pro-1', roomId: 'room-1', date: '2026-11-10', time: '09:00', duration: 30, status: 'Concluída', source: 'Recepção', reference: 'TESTE-PASSADO', typeId: 'primeira', fitIn: false, history: [], ...extra });
+
+test('tipos: a consulta grava o tipo e ocupa a duração dele', () => {
+  const data = base();
+  const next = bookAppointment(data, booking({ typeId: 'primeira' }), 'Recepção', now);
+  assert.equal(next.appointments.at(-1).typeId, 'primeira');
+  const post = bookAppointment(data, booking({ professionalId: 'pro-2', time: '14:00', typeId: 'pos-operatorio' }), 'Recepção', now).appointments.at(-1);
+  assert.equal(post.duration, 40);
+  // 14:00–14:40 bloqueia também o horário das 14:30 na grade de 30 em 30 minutos.
+  const after = bookAppointment(data, booking({ professionalId: 'pro-2', time: '14:00', typeId: 'pos-operatorio' }), 'Recepção', now);
+  assert.match(bookingProblem(after, booking({ professionalId: 'pro-2', patientId: 'pat-1', roomId: 'room-2', time: '14:30', typeId: 'primeira' }), '', now), /profissional/);
+  assert.equal(availableSlots(data, booking({ professionalId: 'pro-2', typeId: 'pos-operatorio' }), '', now).at(-1), '16:00');
+  assert.match(bookingProblem(data, booking({ typeId: 'nao-existe' }), '', now), /não é atendido/);
+});
+test('tipos: limite diário por tipo conta só consultas ativas e normais', () => {
+  let data = base(); // já tem 1 primeira consulta às 09:00 no dia 24
+  for (const [i, t] of ['10:00', '10:30', '11:00'].entries()) data = bookAppointment(data, booking({ patientId: i % 2 ? 'pat-1' : 'pat-2', time: t, typeId: 'primeira' }), 'Recepção', now);
+  assert.match(bookingProblem(data, booking({ time: '11:30', typeId: 'primeira' }), '', now), /Limite diário/);
+  const cancelled = changeAppointmentStatus(data, data.appointments.at(-1).id, 'Cancelada', 'Teste', now);
+  assert.equal(bookingProblem(cancelled, booking({ time: '11:30', typeId: 'primeira' }), '', now), '');
+});
+test('tipos: retorno exige consulta concluída com o mesmo profissional dentro do prazo', () => {
+  const data = base();
+  assert.match(bookingProblem(data, booking({ typeId: 'retorno' }), '', now), /30 dias/);
+  const recent = parseHospitalData({ ...data, appointments: [...data.appointments, concluded()] });
+  assert.equal(bookingProblem(recent, booking({ typeId: 'retorno' }), '', now), '');
+  const old = parseHospitalData({ ...data, appointments: [...data.appointments, concluded({ date: '2026-10-01' })] });
+  assert.match(bookingProblem(old, booking({ typeId: 'retorno' }), '', now), /30 dias/);
+});
+test('encaixe: só recepção, só intervalo livre, respeita tipos aceitos e limite diário', () => {
+  let data = base();
+  const fit = (extra = {}) => booking({ professionalId: 'pro-2', time: '13:15', typeId: 'primeira', ...extra });
+  assert.throws(() => bookFitIn(data, fit(), '', now), /motivo/);
+  assert.match(fitInProblem(data, booking({ time: '10:15', typeId: 'primeira' }), now), /não é aceita como encaixe/);
+  assert.match(fitInProblem(data, booking({ time: '09:15', typeId: 'retorno' }), now), /30 dias|profissional/);
+  data = bookFitIn(data, fit(), 'Paciente com exame urgente', now);
+  const a = data.appointments.at(-1);
+  assert.equal(a.fitIn, true); assert.match(a.reference, /^EN-/);
+  // Sem sobreposição: o encaixe 13:15–13:45 bloqueia 13:00 e 13:30 na grade normal.
+  const grid = availableSlots(data, booking({ professionalId: 'pro-2', typeId: 'primeira' }), '', now);
+  assert.ok(!grid.includes('13:00') && !grid.includes('13:30') && grid.includes('14:00'));
+  assert.match(fitInProblem(data, fit({ patientId: 'pat-1', time: '15:15' }), now), /Limite diário de encaixes/);
+  assert.equal(parseHospitalData(data).appointments.at(-1).fitIn, true);
+});
+test('encaixe: horários sugeridos ficam fora da grade normal e não sobrepõem', () => {
+  const data = base();
+  const slots = fitInSlots(data, booking({ professionalId: 'pro-2', typeId: 'primeira' }), now);
+  assert.ok(slots.includes('13:05') && !slots.includes('13:00') && !slots.includes('13:30'));
+  assert.deepEqual(fitInSlots(data, booking({ typeId: 'primeira' }), now), []); // pro-1 aceita só retorno
+});
+test('pedido de encaixe: fica pendente sem reservar horário, avisa responsáveis e a recepção decide', () => {
+  const data = base();
+  const req = { patientId: 'pat-2', professionalId: 'pro-2', typeId: 'primeira', date: '2026-11-24', note: 'Sem horários na semana' };
+  const pending = requestFitIn(data, req, 'Recepção', now);
+  assert.equal(pending.fitInRequests[0].status, 'Pendente');
+  assert.equal(pending.appointments.length, data.appointments.length);
+  assert.equal(pending.notifications.length, 1);
+  assert.throws(() => requestFitIn(pending, req, 'Recepção', now), /pendente/);
+  assert.throws(() => requestFitIn(data, { ...req, professionalId: 'pro-1' }, 'Recepção', now), /não é aceita como encaixe/);
+  const id = pending.fitInRequests[0].id;
+  assert.throws(() => rejectFitIn(pending, id, '', now), /motivo/);
+  const approved = approveFitIn(pending, id, { time: '13:15', roomId: 'room-2' }, 'Aprovado pela recepção', now);
+  assert.equal(approved.fitInRequests[0].status, 'Aprovado');
+  assert.equal(approved.appointments.find(a => a.id === approved.fitInRequests[0].appointmentId).fitIn, true);
+  assert.throws(() => approveFitIn(approved, id, { time: '14:15', roomId: 'room-2' }, '', now), /resolvido/);
+  assert.equal(rejectFitIn(pending, id, 'Agenda cheia', now).fitInRequests[0].status, 'Recusado');
+});
+test('critérios de ocupação: resumo de vagas por tipo e de encaixes do dia', () => {
+  const c = occupancyCriteria(base(), 'pro-1', '2026-11-24', now);
+  const primeira = c.types.find(t => t.id === 'primeira');
+  assert.equal(c.worksThatDay, true);
+  assert.equal(primeira.booked, 1); assert.equal(primeira.remaining, 3); assert.ok(primeira.freeSlots > 0);
+  assert.equal(c.types.find(t => t.id === 'retorno').acceptsFitIn, true);
+  assert.deepEqual({ remaining: c.fitIn.remaining, overlapAllowed: c.fitIn.overlapAllowed }, { remaining: 2, overlapAllowed: false });
+  assert.equal(occupancyCriteria(base(), 'pro-2', '2026-11-24', now).types.find(t => t.id === 'pos-operatorio').freeSlots, 7);
+  assert.equal(occupancyCriteria(base(), 'pro-1', '2026-11-28', now).worksThatDay, false);
+});
+test('compatibilidade: agenda salva antes dos tipos e encaixes continua abrindo', () => {
+  const old = structuredClone(base());
+  delete old.fitInRequests;
+  for (const p of old.professionals) { delete p.consultationTypes; delete p.fitIn; }
+  for (const a of old.appointments) { delete a.typeId; delete a.fitIn; }
+  const data = parseHospitalData(old);
+  assert.deepEqual(consultationTypes(data.professionals[0]).map(t => t.name), ['Consulta']);
+  assert.equal(data.professionals[0].fitIn.enabled, false);
+  assert.equal(bookingProblem(data, booking(), '', now), '');
+  assert.match(fitInProblem(data, booking({ time: '10:15' }), now), /não aceita encaixes/);
+});
+test('profissional: tipo com consulta aberta não pode sumir nem mudar de duração', () => {
+  const data = base(), pro = data.professionals[0];
+  assert.throws(() => saveProfessional(data, { ...pro, consultationTypes: pro.consultationTypes.filter(t => t.id !== 'primeira') }), /consultas abertas/);
+  assert.throws(() => saveProfessional(data, { ...pro, consultationTypes: pro.consultationTypes.map(t => t.id === 'primeira' ? { ...t, duration: 40 } : t) }), /consultas abertas/);
+  assert.equal(saveProfessional(data, { ...pro, consultationTypes: pro.consultationTypes.map(t => t.id === 'primeira' ? { ...t, dailyLimit: 6 } : t) }).professionals[0].consultationTypes[0].dailyLimit, 6);
+  assert.throws(() => saveProfessional(data, { ...pro, fitIn: { ...pro.fitIn, typeIds: ['inexistente'] } }), /não existe/);
 });
