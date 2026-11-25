@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ZodError } from 'zod';
 import { hemoStorageKey, makeHemoData, parseHemoData, type HemoData } from './domain';
+import { stampAudit } from './clinical';
 
 export function hemoError(error: unknown) { return error instanceof ZodError ? error.issues.map(i => i.message).slice(0, 3).join(' ') : error instanceof Error ? error.message : 'Não foi possível concluir a operação.'; }
 function load() {
@@ -8,8 +9,10 @@ function load() {
   catch { return { data: null as HemoData | null, error: 'Não foi possível ler os dados da hemodinâmica salvos neste navegador. A base original foi preservada.' }; }
 }
 /** Mesmo padrão da agenda: grava no navegador e recusa a gravação se outra aba mudou os dados antes. */
-export function useHemo() {
+/** actor = usuário logado; cada entrada nova do histórico leva o nome dele. */
+export function useHemo(actor = '') {
   const [state, setState] = useState(load);
+  const actorRef = useRef(actor); actorRef.current = actor;
   const latest = useRef(state); latest.current = state;
   const [error, setError] = useState('');
   useEffect(() => {
@@ -24,7 +27,7 @@ export function useHemo() {
       if (!current) throw new Error('A base está indisponível.');
       const raw = localStorage.getItem(hemoStorageKey);
       if (raw && parseHemoData(JSON.parse(raw)).revision !== current.revision) { const next = load(); latest.current = next; setState(next); throw new Error('Os dados foram atualizados em outra aba. Confira e tente novamente.'); }
-      const next = parseHemoData(change(current));
+      const next = parseHemoData(stampAudit(current, change(current), actorRef.current));
       localStorage.setItem(hemoStorageKey, JSON.stringify(next));
       const result = { data: next, error: '' }; latest.current = result; setState(result);
       return true;

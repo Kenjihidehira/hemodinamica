@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { CalendarDays, Camera, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
-import { addHospitalResource, availableSlots, bookAppointment, changeAppointmentStatus, clockTime, hospitalStorageKey, localNow, minutes, nextStatuses, plusDays, readNotification, rescheduleAppointment, saveHospitalConfig, savePatient, saveProfessional, saveResponsible, statuses, weekdays, type Appointment, type Booking, type HospitalData, type Patient, type ProfessionalInput } from './domain';
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { addHospitalResource, availableSlots, bookAppointment, changeAppointmentStatus, clockTime, hospitalStorageKey, localNow, minutes, nextStatuses, plusDays, readNotification, rescheduleAppointment, saveHospitalConfig, saveResponsible, statuses, type Appointment, type Booking, type HospitalData } from './domain';
 import { type HospitalStore } from './useHospital';
+import { type AuthSession } from '../auth/useAuth';
+import { DaysPicker } from './profileParts';
+import Profiles from './Profiles';
 import './hospital.css';
 
 type Props = { data: HospitalData; update: HospitalStore['update'] };
@@ -9,44 +12,19 @@ const showDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle
 const person = (data: HospitalData, id: string) => data.patients.find(p => p.id === id)?.name ?? 'Paciente indisponível';
 const doctor = (data: HospitalData, id: string) => data.professionals.find(p => p.id === id)?.name ?? 'Profissional indisponível';
 const room = (data: HospitalData, id: string) => data.rooms.find(r => r.id === id)?.name ?? 'Sala indisponível';
-const blankPatient = (): Patient => ({ id: crypto.randomUUID(), name: '', phone: '', birthDate: '', occupation: '', photoUrl: '' });
-const initials = (name: string) => name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toLocaleUpperCase('pt-BR') || '—';
-const age = (birthDate: string) => birthDate ? Math.max(0, Math.floor((Date.now() - new Date(`${birthDate}T12:00:00`).getTime()) / 31_557_600_000)) : null;
 
-function ProfileAvatar({ name, photoUrl, large = false }: { name: string; photoUrl: string; large?: boolean }) {
-  return <span className={`profile-avatar ${large ? 'is-large' : ''}`}>{photoUrl ? <img src={photoUrl} alt={`Foto de ${name || 'perfil'}`}/> : <span aria-label={`Sem foto. Iniciais ${initials(name)}`}>{initials(name)}</span>}</span>;
-}
-
-function ProfilePhotoField({ name, value, onChange }: { name: string; value: string; onChange: (value: string) => void }) {
-  const [error, setError] = useState('');
-  function readPhoto(file?: File) {
-    setError('');
-    if (!file) return;
-    if (!file.type.startsWith('image/')) { setError('Selecione um arquivo de imagem.'); return; }
-    if (file.size > 700_000) { setError('A imagem deve ter no máximo 700 KB nesta demonstração local.'); return; }
-    const reader = new FileReader();
-    reader.onload = () => onChange(typeof reader.result === 'string' ? reader.result : '');
-    reader.onerror = () => setError('Não foi possível ler a imagem.');
-    reader.readAsDataURL(file);
-  }
-  return <div className="profile-photo-field"><ProfileAvatar name={name} photoUrl={value} large/><div><label className="button secondary profile-photo-button"><Camera size={16}/> {value ? 'Trocar foto' : 'Adicionar foto'}<input type="file" accept="image/*" onChange={e => readPhoto(e.target.files?.[0])}/></label>{value && <button type="button" className="text-link" onClick={() => onChange('')}>Remover foto</button>}<small>JPG, PNG ou WebP, até 700 KB.</small>{error && <p className="profile-photo-error" role="alert">{error}</p>}</div></div>;
-}
-
-export default function HospitalWorkspace({ store, settings = false, profiles = false }: { store: HospitalStore; settings?: boolean; profiles?: boolean }) {
-  const [tab, setTab] = useState(profiles ? 'patients' : 'agenda');
+export default function HospitalWorkspace({ store, auth, settings = false, profiles = false }: { store: HospitalStore; auth?: AuthSession; settings?: boolean; profiles?: boolean }) {
+  const [tab, setTab] = useState('agenda');
   const { data, update, error } = store;
   if (!data) return <section className="panel module-form"><h2>Agenda indisponível</h2><p role="alert">{error}</p><button className="button secondary" onClick={() => { const raw = localStorage.getItem(hospitalStorageKey); if (raw) { const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = 'agenda-recuperacao.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); } }}>Exportar base original</button></section>;
-  const workspaceTabs = profiles
-    ? [['patients', 'Pacientes'], ['professionals', 'Profissionais']]
-    : [['agenda', 'Agenda'], ['notifications', `Notificações${data.notifications.some(n => !n.read) ? ` (${data.notifications.filter(n => !n.read).length})` : ''}`]];
+  if (profiles) return <Profiles store={store} auth={auth}/>;
+  const workspaceTabs = [['agenda', 'Agenda'], ['notifications', `Notificações${data.notifications.some(n => !n.read) ? ` (${data.notifications.filter(n => !n.read).length})` : ''}`]];
   return <div className="hospital-workspace module-stack">
     <div className="hospital-local-note"><strong>Ambiente local de demonstração</strong><span>Use pacientes fictícios. Os dados ficam somente neste navegador, sem compartilhamento entre usuários.</span></div>
     {error && <div className="module-error" role="alert">{error}<button type="button" className="message-close" aria-label="Fechar aviso" onClick={store.clearError}><X size={16}/></button></div>}
     {settings ? <HospitalSettings data={data} update={update}/> : <>
-      <div className="module-tabs hospital-tabs" role="group" aria-label={profiles ? 'Perfis de atendimento' : 'Agenda e comunicação'}>{workspaceTabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={() => { setTab(id); store.clearError(); }}>{label}</button>)}</div>
+      <div className="module-tabs hospital-tabs" role="group" aria-label="Agenda e comunicação">{workspaceTabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={() => { setTab(id); store.clearError(); }}>{label}</button>)}</div>
       {tab === 'agenda' && <Agenda data={data} update={update}/>}
-      {tab === 'patients' && <Patients data={data} update={update}/>}
-      {tab === 'professionals' && <Professionals data={data} update={update}/>}
       {tab === 'notifications' && <Notifications data={data} update={update}/>}
     </>}
   </div>;
@@ -98,18 +76,6 @@ function BookingFields({ data, input, change, fixedPatient = false }: { data: Ho
   return <div className="hospital-form-grid"><label>Paciente<select value={input.patientId} required disabled={fixedPatient} onChange={e => change('patientId', e.target.value)}><option value="">Selecione</option>{data.patients.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label>Profissional / especialidade<select required value={input.professionalId} onChange={e => change('professionalId', e.target.value)}><option value="">Selecione</option>{data.professionals.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.name} · {data.specialties.find(s => s.id === p.specialtyId)?.name}</option>)}</select></label><label>Data da consulta<input required type="date" min={localNow(data.config.timezone).date} value={input.date} onChange={e => change('date', e.target.value)}/></label><label>Sala / unidade<select required value={input.roomId} onChange={e => change('roomId', e.target.value)}><option value="">Selecione</option>{data.rooms.filter(r => r.unitId === pro?.unitId).map(r => <option key={r.id} value={r.id}>{r.name} · {data.units.find(u => u.id === r.unitId)?.name}</option>)}</select></label></div>;
 }
 function SlotPicker({ slots, selected, onSelect }: { slots: string[]; selected: string; onSelect: (value: string) => void }) { return <fieldset className="slot-fieldset"><legend>Horários disponíveis</legend>{slots.length ? <div className="slot-grid">{slots.map(s => <button key={s} type="button" aria-pressed={selected === s} className={selected === s ? 'is-selected' : ''} onClick={() => onSelect(s)}>{s}</button>)}</div> : <p className="module-note">Nenhum horário disponível. Confira o paciente, a data, o profissional e a sala.</p>}</fieldset>; }
-
-function Patients({ data, update }: Props) {
-  const [patient, setPatient] = useState(blankPatient), [search, setSearch] = useState(''), [message, setMessage] = useState('');
-  const patients = data.patients.filter(p => `${p.name} ${p.occupation} ${p.phone}`.toLocaleLowerCase('pt-BR').includes(search.toLocaleLowerCase('pt-BR')));
-  return <div className="hospital-two-columns profile-workspace"><section className="panel"><div className="panel-head"><div><h2>Perfil do paciente</h2><p>Identificação administrativa. Sem prontuário ou informações clínicas.</p></div></div><form className="module-form" onSubmit={e => { e.preventDefault(); if (update(d => savePatient(d, patient))) { setMessage('Paciente salvo. Já pode ser selecionado na agenda.'); setPatient(blankPatient()); } }}><ProfilePhotoField name={patient.name} value={patient.photoUrl} onChange={photoUrl => setPatient({ ...patient, photoUrl })}/><label>Nome completo<input required maxLength={160} value={patient.name} onChange={e => setPatient({ ...patient, name: e.target.value })}/></label><label>Ocupação (opcional)<input maxLength={120} placeholder="Ex.: Analista administrativo" value={patient.occupation} onChange={e => setPatient({ ...patient, occupation: e.target.value })}/></label><div className="hospital-form-grid"><label>Telefone (opcional)<input type="tel" maxLength={25} value={patient.phone} onChange={e => setPatient({ ...patient, phone: e.target.value })}/></label><label>Nascimento (opcional)<input type="date" max={localNow(data.config.timezone).date} value={patient.birthDate} onChange={e => setPatient({ ...patient, birthDate: e.target.value })}/></label></div>{message && <p role="status" className="module-success">{message}</p>}<div className="module-actions"><button className="button primary">Salvar paciente</button><button className="button secondary" type="button" onClick={() => { setPatient(blankPatient()); setMessage(''); }}>Novo cadastro</button></div></form></section><section className="panel profile-directory"><div className="panel-head"><div><h2>Pacientes</h2><p>{patients.length} de {data.patients.length} perfis</p></div></div><div className="module-form"><label>Buscar por nome, ocupação ou telefone<input value={search} onChange={e => setSearch(e.target.value)}/></label><div className="profile-list">{patients.map(p => <button className="profile-card" key={p.id} onClick={() => { setPatient(p); setMessage(''); }}><ProfileAvatar name={p.name} photoUrl={p.photoUrl}/><span className="profile-card-copy"><strong>{p.name}</strong><small className="profile-role">{p.occupation || 'Ocupação não informada'}</small><small>{p.phone || 'Telefone não informado'}{p.birthDate ? ` · ${age(p.birthDate)} anos` : ''}</small></span><span className="profile-edit">Editar</span></button>)}{patients.length === 0 && <p className="empty-state">Nenhum paciente encontrado.</p>}</div></div></section></div>;
-}
-function Professionals({ data, update }: Props) {
-  const blank = (): ProfessionalInput => ({ id: crypto.randomUUID(), name: '', occupation: '', photoUrl: '', unitId: data.units[0]?.id ?? '', specialtyId: data.specialties[0]?.id ?? '', days: [1, 2, 3, 4, 5], start: '08:00', end: '12:00', duration: 30, active: true });
-  const [pro, setPro] = useState(blank), [message, setMessage] = useState('');
-  return <div className="hospital-two-columns profile-workspace"><section className="panel"><div className="panel-head"><div><h2>Perfil profissional e grade</h2><p>A especialidade identifica o atendimento; a ocupação descreve a função.</p></div></div><form className="module-form" onSubmit={e => { e.preventDefault(); if (update(d => saveProfessional(d, pro))) { setPro(blank()); setMessage('Profissional salvo.'); } }}><ProfilePhotoField name={pro.name} value={pro.photoUrl ?? ''} onChange={photoUrl => setPro({ ...pro, photoUrl })}/><label>Nome do profissional<input required maxLength={160} value={pro.name} onChange={e => setPro({ ...pro, name: e.target.value })}/></label><label>Ocupação / função<input maxLength={120} placeholder="Ex.: Médica responsável" value={pro.occupation ?? ''} onChange={e => setPro({ ...pro, occupation: e.target.value })}/></label><div className="hospital-form-grid"><label>Unidade<select value={pro.unitId} onChange={e => setPro({ ...pro, unitId: e.target.value })}>{data.units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label><label>Especialidade<select value={pro.specialtyId} onChange={e => setPro({ ...pro, specialtyId: e.target.value })}>{data.specialties.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>Início<input type="time" required value={pro.start} onChange={e => setPro({ ...pro, start: e.target.value })}/></label><label>Fim<input type="time" required value={pro.end} onChange={e => setPro({ ...pro, end: e.target.value })}/></label><label>Duração da consulta (min)<input type="number" min={10} max={180} required value={pro.duration} onChange={e => setPro({ ...pro, duration: Number(e.target.value) })}/></label><label className="hospital-check"><input type="checkbox" checked={pro.active} onChange={e => setPro({ ...pro, active: e.target.checked })}/> Ativo</label></div><DaysPicker value={pro.days} onChange={days => setPro({ ...pro, days })}/>{message && <p className="module-success" role="status">{message}</p>}<div className="module-actions"><button className="button primary">Salvar profissional</button><button type="button" className="button secondary" onClick={() => { setPro(blank()); setMessage(''); }}>Novo cadastro</button></div></form></section><section className="panel profile-directory"><div className="panel-head"><div><h2>Equipe de atendimento</h2><p>{data.professionals.length} profissionais cadastrados</p></div></div><div className="profile-list profile-list-professionals">{data.professionals.map(p => <button className="profile-card" key={p.id} onClick={() => { setPro(p); setMessage(''); }}><ProfileAvatar name={p.name} photoUrl={p.photoUrl}/><span className="profile-card-copy"><strong>{p.name}</strong><small className="profile-role">{p.occupation || data.specialties.find(s => s.id === p.specialtyId)?.name}</small><small>{data.specialties.find(s => s.id === p.specialtyId)?.name} · {data.units.find(u => u.id === p.unitId)?.name}</small><small>{p.days.map(d => weekdays[d]).join(', ')} · {p.start}–{p.end} · {p.duration} min</small></span><span className={`profile-status ${p.active ? 'is-active' : ''}`}>{p.active ? 'Ativo' : 'Inativo'}</span></button>)}</div></section></div>;
-}
-function DaysPicker({ value, onChange }: { value: number[]; onChange: (days: number[]) => void }) { return <fieldset className="days-picker"><legend>Dias de funcionamento</legend>{weekdays.map((day, i) => <label key={day}><input type="checkbox" checked={value.includes(i)} onChange={e => onChange(e.target.checked ? [...value, i].sort() : value.filter(d => d !== i))}/>{day}</label>)}</fieldset>; }
 
 function HospitalSettings({ data, update }: Props) {
   const [config, setConfig] = useState(data.config), [message, setMessage] = useState('');

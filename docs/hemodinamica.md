@@ -69,6 +69,63 @@ São calculados só com o que foi registrado:
 
 A dose pessoal da equipe depende do dosímetro individual, que não está integrado.
 
+## Segurança clínica e qualidade
+
+As regras ficam em `src/hemo/clinical.ts`, e a parte renal em `src/hemo/domain.ts`. O sistema registra, calcula tempos e lembra. Ele não sugere dose nem conduta. Os valores de referência são do serviço e podem ser ajustados no código.
+
+### Função renal e contraste
+
+- **TFG estimada:** calculada pela fórmula CKD-EPI 2021, a partir de creatinina, idade e sexo. Aparece na ficha.
+- **Alertas:**
+  - abaixo de 60, atenção;
+  - abaixo de 30, risco alto.
+- **Limite sugerido de contraste:** TFG × 3,7 (`CONTRAST_EGFR_RATIO`). A sala avisa enquanto o volume é digitado acima desse limite.
+- **Creatinina de controle:**
+  - programada para 2 dias depois quando há risco ou contraste acima do limite;
+  - aparece na ficha e na aba **Acompanhamento**.
+- **Lesão renal aguda:** marcada pelo critério KDIGO (alta ≥ 0,3 mg/dL ou ≥ 1,5 vez a basal), com aviso para o médico.
+
+### Urgência por etapas e sobreaviso
+
+- **Etapas do porta-balão:** chegada → ECG (meta de 10 min) → acionamento da equipe → equipe na sala → punção → abertura da artéria.
+- **Onde registrar:**
+  - o ECG pode ser informado ao abrir a urgência;
+  - os demais horários vão no quadro "Porta-balão por etapas";
+  - o sistema confere a ordem dos horários e recusa horários no futuro.
+- **Indicadores:** mostram a mediana de cada etapa, o que indica onde o tempo se perde.
+- **Escala de sobreaviso:** fica em **Salas do dia** e mostra os próximos 7 dias. A urgência já abre com o médico de sobreaviso do dia.
+
+### Medicamentos e TCA na sala
+
+- **Medicamentos:** cada registro tem medicamento, dose, unidade, via e horário, dentro do período em sala. A lista de nomes só ajuda a digitar.
+- **Onde aparecem:** no laudo assinado, na conta e no contexto do copilot.
+- **TCA:** leituras com horário. O alvo, quando houver, é definido pelo médico, e a ficha avisa se a última medida ficou abaixo dele.
+
+### Recuperação e alta
+
+- **Pulseira radial:**
+  - o cronômetro começa ao concluir um procedimento por via radial, com 120 min de referência (`BAND_RELEASE_REFERENCE_MIN`), ajustável caso a caso;
+  - avisa quando passa do horário;
+  - a retirada fica registrada com o tempo de compressão.
+- **Orientação de alta:**
+  - modelo editável com cuidados com a punção e sinais de alarme, e o aviso de não interromper antiagregantes quando houve stent;
+  - não traz doses nem prazos clínicos, que vêm do protocolo e da receita;
+  - quem recebeu stent precisa ter os medicamentos da alta registrados;
+  - pode ser impressa, copiada e marcada como entregue.
+- **Aviso ao liberar:** se a pulseira não foi retirada ou se a alta no mesmo dia está sem orientação entregue, o sistema pede confirmação.
+
+### Consentimento, imagens e reposição
+
+- **Termo de consentimento:** assinado na tela, com o dedo, a caneta ou o mouse, antes da sala. Marca o item do preparo sozinho.
+  - É uma assinatura eletrônica simples, sem certificado; a validade jurídica precisa ser confirmada com o hospital.
+  - O texto de riscos é o do termo do hospital.
+- **Imagens da angiografia:** vínculo manual com o número de acesso e o link do visualizador, que aceita só endereços http(s). A integração com o PACS fica para depois.
+- **Pedido de reposição sugerido:** em **Materiais**, por fornecedor, juntando consignados usados em pacientes e abaixo do mínimo. Dá para copiar ou imprimir; nada é enviado.
+
+### Autoria
+
+Cada entrada do histórico mostra o usuário logado que fez a ação. Veja [acesso-e-permissoes.md](acesso-e-permissoes.md).
+
 ## Materiais: um só estoque
 
 Os materiais da hemodinâmica são produtos do **Estoque do hospital**, na especialidade "Hemodinâmica", com lotes no local "Hemodinâmica · Armário de materiais". Aparecem em Estoque, Alertas, Dashboard, Inventário e Leitura de código como qualquer outro produto.

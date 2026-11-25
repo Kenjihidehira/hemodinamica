@@ -3,22 +3,19 @@ import { AlertTriangle, Bot, Check, Copy, FileText, Plug, Plus, RotateCcw, Searc
 import {
   accessRoutes, addMinutes, ageAt, allGlosas, appealGlosa, billingItems, cancelCase, closeBilling, consumeMaterial, copilotContext, decideAuthorization, destinations, displacedBy, doorToBalloon,
   DOOR_TO_BALLOON_TARGET_MIN, doseAlerts, finishProcedure, finishRecovery, flowStages, followUpOutcomes, freeStarts, hemoIndicators, hemoMaterials, implantsOf, intraProblem, isOpme, localStamp,
-  materialAlerts, minutesOf, occupancy, opmeGaps, patientOf, pendingFollowUps, pendingReplenishment, prepItems, prepMessage, prepMissing, productOf, receiveReplenishment, recordFollowUp,
+  materialAlerts, minutesOf, occupancy, opmeGaps, patientOf, pendingFollowUps, pendingRenalRechecks, pendingReplenishment, prepItems, contrastWarning, renalProfile, CONTRAST_EGFR_RATIO, prepMessage, prepMissing, productOf, receiveReplenishment, recordFollowUp,
   registerGlosa, regularizeAuthorization, requestCase, resolveGlosa, returnMaterial, safetyAlerts, saveOpme, saveReport, savePrep, scheduleCase, signReport, SKIN_DOSE_FOLLOWUP_MGY, startEmergency,
   startProcedure, timeoutItems, tissPreview, traceLot, typeOf, usableLots,
   type Finding, type FollowUpOutcome, type Glosa, type HemoCase, type HemoData, type Intra, type PrepChecks, type Recovery, type Stage, type TimeoutChecks, type WithStock,
 } from './domain';
 import { askCopilot, copilotStatus, type Answer, type Briefing } from './copilot';
 import { type HemoStore } from './useHemo';
+import { onCallFor, renalStages } from './clinical';
+import { BandPanel, ClinicalIndicators, ConsentPanel, DischargePanel, ImagingPanel, MedsPanel, OnCallPanel, RenalLine, RenalRecheckList, RenalRecheckStep, ReplenishmentOrders, UrgencyTimeline } from './ClinicalPanels';
+import { dateTime, when, type Props, type Update } from './ui';
 import { availableQuantity, type DemoData } from '../data';
 import '../hospital/hospital.css';
 import './hemo.css';
-
-type Update = HemoStore['update'];
-/** stock = Estoque do hospital; commitBoth grava caso e estoque juntos (o estoque só muda se o caso gravar). */
-type Props = { data: HemoData; update: Update; stock: DemoData; commitBoth: (change: (hemo: HemoData, stock: DemoData) => WithStock) => boolean; onOpenLot: (stockId: string) => void };
-const when = (value: string) => value ? `${value.slice(8, 10)}/${value.slice(5, 7)} ${value.slice(11, 16)}` : '—';
-const dateTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
 const stageTone: Partial<Record<Stage, string>> = { Autorização: 'status-waiting', Encerrado: 'status-done', Cancelado: 'status-cancelled' };
 
 export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }: { store: HemoStore; stock: DemoData; onStockChange: (next: DemoData) => void; onOpenLot: (stockId: string) => void }) {
@@ -33,7 +30,7 @@ export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }
   }
   const ctx: Props = { data, update, stock, commitBoth, onOpenLot };
   const pending = pendingReplenishment(data, stock.products).length, alerts = materialAlerts(stock).length;
-  const openGlosas = allGlosas(data).filter(x => x.g.status === 'Aberta').length, overdue = pendingFollowUps(data).filter(x => x.days < 0).length;
+  const openGlosas = allGlosas(data).filter(x => x.g.status === 'Aberta').length, overdue = pendingFollowUps(data).filter(x => x.days < 0).length + pendingRenalRechecks(data).filter(x => x.days < 0).length;
   const n = (count: number) => count ? ` (${count})` : '';
   const tabs = [['cases', 'Procedimentos'], ['rooms', 'Salas do dia'], ['materials', `Materiais${n(alerts + pending)}`], ['claims', `Convênios e glosas${n(openGlosas)}`], ['followup', `Acompanhamento${n(overdue)}`], ['indicators', 'Indicadores'], ['invoices', 'Notas fiscais'], ['integrations', 'Integrações']] as const;
   return <div className="hospital-workspace hemo-workspace module-stack">
@@ -41,7 +38,7 @@ export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }
     {error && <div className="module-error" role="alert">{error}<button type="button" className="message-close" aria-label="Fechar aviso" onClick={store.clearError}><X size={16}/></button></div>}
     <div className="module-tabs hospital-tabs" role="group" aria-label="Hemodinâmica">{tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={() => { setTab(id); store.clearError(); }}>{label}</button>)}</div>
     {tab === 'cases' && <Cases {...ctx}/>}
-    {tab === 'rooms' && <Rooms data={data}/>}
+    {tab === 'rooms' && <><Rooms data={data}/><OnCallPanel data={data} update={update}/></>}
     {tab === 'materials' && <Materials {...ctx}/>}
     {tab === 'claims' && <Claims {...ctx}/>}
     {tab === 'followup' && <FollowUps {...ctx}/>}
@@ -104,7 +101,8 @@ function NewCase({ data, update, onDone }: Props & { onDone: (id?: string) => vo
 }
 
 function NewEmergency({ data, update, onDone }: Props & { onDone: (id?: string) => void }) {
-  const [form, setForm] = useState({ patientId: data.patients[0]?.id ?? '', typeId: data.types.find(t => t.id === 'iam')?.id ?? data.types[0]?.id ?? '', roomId: data.rooms[0]?.id ?? '', doctorId: data.doctors[0]?.id ?? '', requestedBy: 'Pronto-socorro', indication: '', doorAt: localStamp() });
+  const onCall = onCallFor(data, localStamp().slice(0, 10));
+  const [form, setForm] = useState({ patientId: data.patients[0]?.id ?? '', typeId: data.types.find(t => t.id === 'iam')?.id ?? data.types[0]?.id ?? '', roomId: data.rooms[0]?.id ?? '', doctorId: onCall || data.doctors[0]?.id || '', requestedBy: 'Pronto-socorro', indication: '', doorAt: localStamp(), ecgAt: '' });
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setForm({ ...form, [k]: e.target.value });
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -117,8 +115,9 @@ function NewEmergency({ data, update, onDone }: Props & { onDone: (id?: string) 
       <label>Paciente<select value={form.patientId} onChange={set('patientId')}>{data.patients.map(p => <option key={p.id} value={p.id}>{p.name} · {p.insurance}</option>)}</select></label>
       <label>Procedimento<select value={form.typeId} onChange={set('typeId')}>{data.types.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
       <label>Sala<select value={form.roomId} onChange={set('roomId')}>{data.rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
-      <label>Hemodinamicista de sobreaviso<select value={form.doctorId} onChange={set('doctorId')}>{data.doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
+      <label>Hemodinamicista de sobreaviso<select value={form.doctorId} onChange={set('doctorId')}>{data.doctors.map(d => <option key={d.id} value={d.id}>{d.name}{d.id === onCall ? ' · escala de hoje' : ''}</option>)}</select></label>
       <label>Chegada no hospital (porta)<input type="datetime-local" value={form.doorAt} onChange={set('doorAt')}/></label>
+      <label>ECG feito às (opcional)<input type="datetime-local" value={form.ecgAt} onChange={set('ecgAt')}/></label>
       <label>Origem<input value={form.requestedBy} onChange={set('requestedBy')}/></label>
     </div>
     <label>Indicação clínica<textarea rows={2} value={form.indication} onChange={set('indication')} placeholder="Ex.: infarto com supra de ST em parede inferior, dor há 2 h"/></label>
@@ -152,19 +151,23 @@ function CaseSheet(props: Props & { c: HemoCase }) {
       <div><small>Alergias</small><span>{p.allergies.join('; ') || 'Nenhuma registrada'}</span></div>
       <div><small>Comorbidades</small><span>{p.conditions.join('; ') || '—'}</span></div>
       <div><small>Medicamentos</small><span>{p.medications.join('; ') || '—'}</span></div>
-      <div><small>Creatinina · peso</small><span>{p.creatinine === null ? 'sem registro' : `${p.creatinine.toLocaleString('pt-BR')} mg/dL`} · {p.weightKg ? `${p.weightKg} kg` : '—'}</span></div>
+      <div><small>Creatinina · TFG · peso</small><RenalLine data={data} c={c}/></div>
     </div>
     {alerts.length > 0 && !['Encerrado', 'Cancelado'].includes(c.stage) && <ul className="hemo-alerts">{alerts.map(a => <li key={a.text} className={`is-${a.level === 'alto' ? 'high' : 'warn'}`}><AlertTriangle size={15}/>{a.text}</li>)}</ul>}
     <DoorToBalloon c={c}/>
+    {c.stage !== 'Cancelado' && <UrgencyTimeline key={JSON.stringify(c.urgency)} update={update} c={c}/>}
     {displaced.length > 0 && <ul className="hemo-alerts"><li className="is-warn"><AlertTriangle size={15}/><span>A urgência ocupa a sala no horário de: {displaced.map(o => `${patientOf(data, o).name} (${o.schedule!.start.slice(11)})`).join('; ')}. Remarque esses procedimentos.</span></li></ul>}
     {c.authorization.status === 'Regularizar' && <Regularize {...props}/>}
 
     <div className="hemo-stage">
       {c.stage === 'Autorização' && <AuthorizationStep {...props}/>}
       {(c.stage === 'Agendamento' || (c.stage === 'Preparo' && c.priority !== 'Urgência')) && <ScheduleStep {...props}/>}
-      {c.stage === 'Preparo' && <PrepStep {...props}/>}
+      {['Autorização', 'Agendamento'].includes(c.stage) && <ConsentPanel data={data} update={update} c={c}/>}
+      {c.stage === 'Preparo' && <PrepStep key={c.consent.signedAt} {...props}/>}
       {c.stage === 'Sala' && <RoomStep {...props}/>}
       {c.stage === 'Recuperação' && <RecoveryStep {...props}/>}
+      {renalStages.includes(c.stage) && <RenalRecheckStep update={update} c={c}/>}
+      {['Laudo', 'Faturamento', 'Encerrado'].includes(c.stage) && <DischargePanel key={c.discharge.deliveredAt} data={data} update={update} stock={stock} c={c}/>}
       {c.stage === 'Laudo' && <ReportStep {...props}/>}
       {c.stage === 'Faturamento' && <BillingStep {...props}/>}
       {(c.stage === 'Faturamento' || c.stage === 'Encerrado') && <SignedReport data={data} stock={stock} c={c}/>}
@@ -181,7 +184,7 @@ function CaseSheet(props: Props & { c: HemoCase }) {
       ? <div className="hemo-inline-form"><label>Motivo do cancelamento<input value={reason} onChange={e => setReason(e.target.value)}/></label><button className="button secondary" onClick={() => { if (update(d => cancelCase(d, c.id, reason))) setCancelling(false); }}>Confirmar cancelamento</button><button className="text-link" onClick={() => setCancelling(false)}>Voltar</button></div>
       : <button className="text-link hemo-cancel" onClick={() => setCancelling(true)}>Cancelar procedimento</button>)}
 
-    <details className="hemo-history"><summary>Histórico ({history.length})</summary><ol className="appointment-history">{history.map(h => <li key={h.id}><small>{dateTime(h.at)} · {h.action}</small><p>{h.detail}</p></li>)}</ol></details>
+    <details className="hemo-history"><summary>Histórico ({history.length})</summary><ol className="appointment-history">{history.map(h => <li key={h.id}><small>{dateTime(h.at)} · {h.action}{h.by ? <> · <strong>{h.by}</strong></> : ''}</small><p>{h.detail}</p></li>)}</ol></details>
   </section>;
 }
 
@@ -247,6 +250,7 @@ function PrepStep({ data, update, c }: Props & { c: HemoCase }) {
   const urgent = c.priority === 'Urgência';
   return <div className="hemo-step"><h3>{urgent ? 'Time-out da urgência' : 'Preparo e time-out'}</h3>
     {!urgent && <PrepMessage data={data} c={c}/>}
+    <ConsentPanel data={data} update={update} c={c}/>
     {urgent && <p className="field-hint">Na urgência o preparo eletivo não bloqueia a entrada em sala; marque o que foi possível. O time-out é obrigatório.</p>}
     <div className="hemo-checks"><fieldset><legend>Preparo do paciente{urgent ? ' (opcional)' : ''}</legend>{(Object.keys(prepItems) as (keyof PrepChecks)[]).map(k => <label key={k} className="hospital-check"><input type="checkbox" checked={prep[k]} onChange={e => setPrep({ ...prep, [k]: e.target.checked })}/>{prepItems[k]}</label>)}</fieldset>
       <fieldset><legend>Time-out na sala (cirurgia segura)</legend>{(Object.keys(timeoutItems) as (keyof TimeoutChecks)[]).map(k => <label key={k} className="hospital-check"><input type="checkbox" checked={timeout[k]} onChange={e => setTimeoutChecks({ ...timeout, [k]: e.target.checked })}/>{timeoutItems[k]}</label>)}</fieldset></div>
@@ -266,6 +270,7 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
   const product = (id: string) => productOf(stock.products, id);
   const chosenProduct = product(usable.find(s => s.id === lotId)?.productId ?? '');
   const gaps = opmeGaps(data, stock.products, c);
+  const renal = renalProfile(data, c), contrast = contrastWarning(data, c, intra.contrastMl);
   return <div className="hemo-step"><h3>Em sala · entrada {when(c.intra.roomIn)}</h3>
     <h4>Materiais usados no paciente</h4>
     <p className="field-hint">Sai do Estoque do hospital como "uso em paciente" e fica ligado a este caso. Só aparecem lotes com saldo disponível (sem reserva, bloqueio, quarentena ou vencimento); o que vence primeiro vem no topo.</p>
@@ -284,18 +289,28 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
       <label>Fluoroscopia (min)<input type="number" min={0} step="0.1" value={intra.fluoroMin} onChange={e => set('fluoroMin', Number(e.target.value))}/></label>
       <label>Kerma no ar (mGy)<input type="number" min={0} value={intra.kermaMgy} onChange={e => set('kermaMgy', Number(e.target.value))}/></label>
     </div>
+    {renal.contrastLimitMl !== null && <p className={contrast ? 'hemo-contrast is-over' : 'hemo-contrast'}>{contrast ? <><AlertTriangle size={14}/>{contrast}</> : <>Limite sugerido de contraste: <strong>{renal.contrastLimitMl} mL</strong> (TFG {renal.egfr} × {CONTRAST_EGFR_RATIO.toLocaleString('pt-BR')}). Referência do serviço; a decisão é do médico.</>}</p>}
     <label>Intercorrências<input value={intra.complications} onChange={e => set('complications', e.target.value)} placeholder="Deixe vazio se não houve"/></label>
+    <MedsPanel update={update} c={c}/>
+    <ImagingPanel key={c.imaging.url + c.imaging.accession} update={update} c={c} editable/>
     <div className="head-actions"><button className="button primary" disabled={!!problem} title={problem} onClick={() => update(d => finishProcedure(d, c.id, intra))}><Check size={16}/> Concluir procedimento</button>{problem && <span className="field-hint">{problem}</span>}</div>
   </div>;
 }
 
-function RecoveryStep({ update, c }: Props & { c: HemoCase }) {
+function RecoveryStep({ data, update, stock, c }: Props & { c: HemoCase }) {
   const [r, setR] = useState<Recovery>(c.recovery);
+  function release() {
+    const pending = [c.band.placedAt && !c.band.removedAt && 'a pulseira radial ainda não foi retirada', r.destination === 'Alta no mesmo dia' && !c.discharge.deliveredAt && 'a orientação de alta não foi entregue'].filter(Boolean);
+    if (pending.length && !window.confirm(`Atenção: ${pending.join(' e ')}. Liberar mesmo assim?`)) return;
+    update(d => finishRecovery(d, c.id, r));
+  }
   return <div className="hemo-step"><h3>Recuperação</h3>
+    <BandPanel key={c.band.placedAt + c.band.releaseMin} update={update} c={c}/>
     <div className="hospital-form-grid"><label>Hemostasia<input value={r.hemostasis} onChange={e => setR({ ...r, hemostasis: e.target.value })} placeholder="Ex.: pulseira de compressão radial por 2 h"/></label><label>Destino<select value={r.destination} onChange={e => setR({ ...r, destination: e.target.value as Recovery['destination'] })}><option value="">Selecione</option>{destinations.map(d => <option key={d}>{d}</option>)}</select></label></div>
     <label className="hospital-check"><input type="checkbox" checked={r.stable} onChange={e => setR({ ...r, stable: e.target.checked })}/>Sinais vitais estáveis e sítio de punção sem sangramento</label>
     <label>Observações<input value={r.notes} onChange={e => setR({ ...r, notes: e.target.value })}/></label>
-    <div className="head-actions"><button className="button primary" onClick={() => update(d => finishRecovery(d, c.id, r))}><Check size={16}/> Liberar para laudo</button></div>
+    <DischargePanel key={c.discharge.deliveredAt} data={data} update={update} stock={stock} c={c}/>
+    <div className="head-actions"><button className="button primary" onClick={release}><Check size={16}/> Liberar para laudo</button></div>
   </div>;
 }
 
@@ -322,6 +337,7 @@ function ReportStep({ data, update, stock, c }: Props & { c: HemoCase }) {
     {review.length > 0 && <div className="hemo-review"><strong>O copilot pede para conferir</strong><ul>{review.map(r => <li key={r}>{r}</li>)}</ul></div>}
     <label>Descrição do procedimento{fromCopilot && <span className="hemo-ai-tag"><Bot size={12}/> rascunho do copilot · revisar</span>}<textarea rows={9} value={text} onChange={e => setText(e.target.value)}/></label>
     <label>Conclusão<textarea rows={3} value={conclusion} onChange={e => setConclusion(e.target.value)}/></label>
+    <ImagingPanel key={c.imaging.url + c.imaging.accession} update={update} c={c} editable/>
     <div className="head-actions">
       <button className="button secondary" disabled={!dirty && fromCopilot === c.report.copilotDraft} onClick={() => update(d => saveReport(d, c.id, { findings, text, conclusion, copilotDraft: fromCopilot }))}>Salvar laudo</button>
       <label className="hemo-signer">Assina<select value={signer} onChange={e => setSigner(e.target.value)}>{data.doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
@@ -336,6 +352,10 @@ function SignedReport({ data, stock, c }: { data: HemoData; stock: DemoData; c: 
     <ul>{c.findings.map(f => <li key={f.id}>{f.vessel}: {f.stenosis}%{f.treatment ? ` · ${f.treatment}` : ''}</li>)}</ul>
     <p className="hemo-report-text">{c.report.text}</p><p><strong>Conclusão:</strong> {c.report.conclusion}</p>
     {implants.length > 0 && <><strong>Implantes</strong><ul>{implants.map(({ used, product }) => <li key={used.id}>{product.name} · {product.anvisaRegistry || 'registro ANVISA não cadastrado'} · lote {used.lot} · série {used.serial || 'não registrada'}</li>)}</ul></>}
+    {c.meds.length > 0 && <><strong>Medicamentos na sala</strong><ul>{c.meds.map(m => <li key={m.id}>{m.at.slice(11)} · {m.drug} {m.dose.toLocaleString('pt-BR')} {m.unit} · {m.route.toLocaleLowerCase('pt-BR')}</li>)}</ul></>}
+    {c.act.readings.length > 0 && <p><strong>TCA:</strong> {c.act.readings.map(r => `${r.at.slice(11)} · ${r.seconds} s`).join('; ')}{c.act.target ? ` (alvo ${c.act.target} s)` : ''}</p>}
+    <ImagingPanel update={() => false} c={c} editable={false}/>
+    {c.consent.signedAt && <p><strong>Consentimento:</strong> assinado por {c.consent.signer} ({c.consent.relation.toLocaleLowerCase('pt-BR')}) em {dateTime(c.consent.signedAt)}.</p>}
     <small>{typeOf(data, c).name} · {c.intra.access} · contraste {c.intra.contrastMl} mL · fluoroscopia {c.intra.fluoroMin} min · {c.intra.kermaMgy} mGy{doorToBalloon(c) !== null ? ` · porta-balão ${doorToBalloon(c)} min` : ''}</small>
   </details>;
 }
@@ -453,6 +473,7 @@ function Materials({ data, stock, commitBoth, onOpenLot }: Props) {
       <div className="hemo-trace"><label className="hemo-search"><Search size={15}/><input aria-label="Lote ou série" value={query} onChange={e => setQuery(e.target.value)} placeholder="Digite o lote ou o número de série (mín. 3 caracteres)"/></label></div>
       {query.trim().length >= 3 && (traced.length === 0 ? <p className="empty-state">Nenhum uso em paciente com esse lote ou série.</p> : <table className="hemo-table"><thead><tr><th>Paciente</th><th>Procedimento</th><th>Data</th><th>Material</th><th>Lote / série</th><th>Médico</th></tr></thead><tbody>{traced.map(x => <tr key={x.used.id}><td><strong>{x.patient}</strong></td><td>{x.procedure}<small className="hemo-code">{x.stage}</small></td><td>{when(x.date)}</td><td>{x.used.quantity} × {x.product.name}</td><td>{x.used.lot}{x.used.serial ? ` / ${x.used.serial}` : ''}</td><td>{x.doctor || '—'}</td></tr>)}</tbody></table>)}
     </section>
+    <ReplenishmentOrders data={data} stock={stock}/>
     {alerts.length > 0 && <section className="panel"><div className="panel-head"><div><h2>Alertas de materiais</h2><p>Saldo abaixo do mínimo e validade em até 30 dias.</p></div></div><ul className="hemo-alerts">{alerts.map(a => <li key={a.text} className={a.level === 'alto' ? 'is-high' : 'is-warn'}><AlertTriangle size={15}/>{a.text}</li>)}</ul></section>}
     <section className="panel"><div className="panel-head"><div><h2>Reposição de consignados</h2><p>Itens do fornecedor usados em pacientes e ainda não repostos. Ao receber, informe o lote novo: ele entra no Estoque do hospital, no mesmo local.</p></div><span className="count-label">{pending.length} pendente(s)</span></div>
       {pending.length === 0 ? <p className="empty-state">Nenhuma reposição pendente.</p> : <table className="hemo-table"><thead><tr><th>Fornecedor</th><th>Material</th><th>Lote usado</th><th>Paciente</th><th/></tr></thead><tbody>{pending.map(x => <tr key={x.used.id}><td>{x.product.supplier || '—'}</td><td>{x.used.quantity} × {x.product.name}</td><td>{x.used.lot}</td><td>{x.patient}</td><td>{receiving === x.used.id ? <div className="hemo-inline-form"><input aria-label="Lote recebido" placeholder="Lote recebido" value={lot} onChange={e => setLot(e.target.value)}/><input aria-label="Validade" type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}/><button className="button primary" onClick={() => { if (commitBoth((h, s) => receiveReplenishment(h, s, x.caseId, x.used.id, { lot, expiresAt }))) { setReceiving(''); setLot(''); setExpiresAt(''); } }}>Confirmar</button><button className="text-link" onClick={() => setReceiving('')}>Cancelar</button></div> : <button className="text-link" onClick={() => setReceiving(x.used.id)}>Registrar reposição</button>}</td></tr>)}</tbody></table>}
@@ -495,6 +516,7 @@ function FollowUps(ctx: Props) {
   const { data } = ctx;
   const pending = pendingFollowUps(data), done = data.cases.filter(c => c.followUp.doneAt);
   return <div className="module-stack">
+    <RenalRecheckList {...ctx} pending={pendingRenalRechecks(data)}/>
     <section className="panel"><div className="panel-head"><div><h2>Contatos de 30 dias</h2><p>Ligação ao paciente 30 dias após o procedimento: complicações, reinternação e óbito entram nos indicadores.</p></div><span className="count-label">{pending.filter(x => x.days < 0).length} atrasado(s)</span></div>
       {pending.length === 0 ? <p className="empty-state">Nenhum contato pendente.</p> : <div className="hemo-followups">{pending.map(({ c, days }) => <div key={c.id} className="hemo-followup"><header><strong>{patientOf(data, c).name}</strong><span className={`appointment-status ${days < 0 ? 'status-cancelled' : days <= 3 ? 'status-waiting' : 'status-scheduled'}`}>{days < 0 ? `atrasado ${-days} dia(s)` : days === 0 ? 'hoje' : `em ${days} dia(s)`}</span></header><small>{typeOf(data, c).name} · {when(c.intra.end)}{c.priority === 'Urgência' ? ' · urgência' : ''}</small><FollowUpStep {...ctx} c={c}/></div>)}</div>}
     </section>
@@ -524,6 +546,7 @@ function Indicators({ data, stock }: Props) {
       <table className="hemo-table"><thead><tr><th>Médico</th><th>Procedimentos</th><th>Fluoroscopia</th><th>Kerma no ar (pacientes)</th></tr></thead><tbody>{ind.byDoctor.map(d => <tr key={d.doctor.id}><td>{d.doctor.name}</td><td>{d.procedures}</td><td>{d.fluoroMin.toLocaleString('pt-BR')} min</td><td>{d.kermaMgy.toLocaleString('pt-BR')} mGy</td></tr>)}</tbody></table>
       {ind.highDosePatients.length > 0 ? <ul className="hemo-alerts">{ind.highDosePatients.map(x => <li key={x.patient.id} className="is-warn"><AlertTriangle size={15}/>{x.patient.name}: {x.kermaMgy.toLocaleString('pt-BR')} mGy acumulados. Avaliar pele.</li>)}</ul> : <p className="empty-state">Nenhum paciente acima de {SKIN_DOSE_FOLLOWUP_MGY.toLocaleString('pt-BR')} mGy acumulados (referência do serviço para avaliação de pele).</p>}
     </section>
+    <ClinicalIndicators data={data}/>
   </div>;
 }
 

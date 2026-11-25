@@ -19,7 +19,7 @@ export const accessRoutes = ['Radial direita', 'Radial esquerda', 'Femoral direi
 export const destinations = ['Alta no mesmo dia', 'Internação', 'UTI'] as const;
 
 const text = z.string().trim();
-const stamp = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Informe data e hora válidas.');
+export const stamp = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, 'Informe data e hora válidas.');
 const optionalStamp = z.union([stamp, z.literal('')]).default('');
 
 const roomSchema = z.object({ id: z.string(), name: text.min(1) });
@@ -48,6 +48,16 @@ const flag = z.boolean().default(false);
 const prepSchema = z.object({ fasting: flag, labs: flag, allergy: flag, anticoagulant: flag, consent: flag, venousAccess: flag }).default({ fasting: false, labs: false, allergy: false, anticoagulant: false, consent: false, venousAccess: false });
 const timeoutSchema = z.object({ identity: flag, procedure: flag, materials: flag, team: flag }).default({ identity: false, procedure: false, materials: false, team: false });
 
+export const medUnits = ['UI', 'mg', 'mcg', 'mL'] as const;
+export const medRoutes = ['Intravenosa', 'Intra-arterial', 'Intracoronária', 'Subcutânea', 'Oral', 'Sublingual'] as const;
+/** Medicamento dado na sala: nome, dose e horário. O sistema não sugere doses. */
+const medSchema = z.object({ id: z.string(), at: stamp, drug: text.min(1, 'Informe o medicamento.').max(120), dose: z.number().positive('Informe a dose.'), unit: z.enum(medUnits), route: z.enum(medRoutes) });
+/** Tempo de coagulação ativado (TCA) na sala. target = alvo definido pelo médico (0 = não definido). */
+const actSchema = z.object({ target: z.number().int().min(0).max(999).default(0), readings: z.array(z.object({ id: z.string(), at: stamp, seconds: z.number().int().min(50, 'TCA entre 50 e 999 segundos.').max(999, 'TCA entre 50 e 999 segundos.') })).default([]) });
+const emptyRenal = { baselineEgfr: null, contrastLimitMl: null, recheckDue: '', recheckCreatinine: null, recheckAt: '', aki: false };
+const emptyDischarge = { text: '', medications: '', returnDate: '', deliveredAt: '', by: '' };
+const emptyConsent = { signedAt: '', signer: '', relation: 'Paciente' as const, signature: '' };
+
 const caseSchema = z.object({
   id: z.string(), patientId: z.string(), typeId: z.string(), requestedBy: text.min(1, 'Informe o médico solicitante.'), indication: text.min(1, 'Informe a indicação clínica.'),
   priority: z.enum(['Eletivo', 'Urgência']), createdAt: z.string(), stage: z.enum(stages),
@@ -70,13 +80,29 @@ const caseSchema = z.object({
   /** Contato de 30 dias após o procedimento. */
   followUp: z.object({ due: z.string().default(''), doneAt: z.string().default(''), outcome: z.union([z.enum(followUpOutcomes), z.literal('')]).default(''), notes: text.default('') }).default({ due: '', doneAt: '', outcome: '', notes: '' }),
   cancelReason: text.default(''),
+  /** Urgência por etapas: ECG, acionamento da equipe de sobreaviso e chegada dela. Punção = intra.start. */
+  urgency: z.object({ ecgAt: optionalStamp, teamCalledAt: optionalStamp, teamArrivedAt: optionalStamp }).default({ ecgAt: '', teamCalledAt: '', teamArrivedAt: '' }),
+  meds: z.array(medSchema).default([]),
+  act: actSchema.default({ target: 0, readings: [] }),
+  /** Função renal no fim do procedimento (TFG estimada, limite de contraste) e creatinina de controle. */
+  renal: z.object({ baselineEgfr: z.number().nullable().default(null), contrastLimitMl: z.number().nullable().default(null), recheckDue: z.string().default(''), recheckCreatinine: z.number().nullable().default(null), recheckAt: z.string().default(''), aki: z.boolean().default(false) }).default(emptyRenal),
+  /** Pulseira de compressão radial: colocação, tempo até liberar (protocolo do serviço) e retirada. */
+  band: z.object({ placedAt: optionalStamp, releaseMin: z.number().int().min(0).max(480).default(0), removedAt: optionalStamp }).default({ placedAt: '', releaseMin: 0, removedAt: '' }),
+  discharge: z.object({ text: z.string().default(''), medications: z.string().default(''), returnDate: z.string().default(''), deliveredAt: z.string().default(''), by: z.string().default('') }).default(emptyDischarge),
+  /** Termo de consentimento assinado na tela (assinatura eletrônica simples, sem certificado). */
+  consent: z.object({ signedAt: z.string().default(''), signer: z.string().default(''), relation: z.enum(['Paciente', 'Responsável legal']).default('Paciente'), signature: z.string().max(400_000).default('') }).default(emptyConsent),
+  /** Exame no sistema de imagens (PACS): número de acesso e link para abrir as imagens. */
+  imaging: z.object({ accession: text.max(64).default(''), url: z.string().max(500).default('') }).default({ accession: '', url: '' }),
 });
-const auditSchema = z.object({ id: z.string(), at: z.string(), caseId: z.string().default(''), action: z.string(), detail: z.string() });
+/** by = usuário logado que fez a ação (preenchido ao gravar; vazio em registros antigos). */
+const auditSchema = z.object({ id: z.string(), at: z.string(), caseId: z.string().default(''), action: z.string(), detail: z.string(), by: z.string().default('') });
 
 export const hemoSchema = z.object({
   schemaVersion: z.literal(2), revision: z.number().int().min(0),
   rooms: z.array(roomSchema), doctors: z.array(doctorSchema), patients: z.array(patientSchema), types: z.array(procedureTypeSchema),
   cases: z.array(caseSchema), audit: z.array(auditSchema).default([]),
+  /** Escala de sobreaviso: hemodinamicista de plantão para urgência em cada dia. */
+  onCall: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), doctorId: z.string() })).default([]),
 });
 export type HemoData = z.infer<typeof hemoSchema>;
 export type HemoCase = HemoData['cases'][number];
@@ -90,6 +116,7 @@ export type OpmeItem = HemoCase['opme']['items'][number];
 export type Glosa = HemoCase['claim']['glosas'][number];
 export type GlosaStatus = typeof glosaStatuses[number];
 export type FollowUpOutcome = typeof followUpOutcomes[number];
+export type Medication = HemoCase['meds'][number];
 
 /**
  * Versão 1 tinha estoque próprio (materials/lots). Os materiais de demonstração viraram produtos do Estoque
@@ -108,7 +135,7 @@ export function parseHemoData(value: unknown): HemoData {
   return data;
 }
 
-const newId = () => crypto.randomUUID();
+export const newId = () => crypto.randomUUID();
 export const minutesOf = (value: string) => Date.parse(`${value}:00Z`) / 60_000;
 export const addMinutes = (value: string, minutes: number) => new Date((minutesOf(value) + minutes) * 60_000).toISOString().slice(0, 16);
 /** Hora local do hospital, no mesmo formato das agendas. */
@@ -130,13 +157,53 @@ export const productOf = (catalog: Product[], id: string): Product => catalog.fi
 const stockReference = (data: HemoData, c: HemoCase) => `${patientOf(data, c).name} · ${typeOf(data, c).name} · caso ${c.id.slice(0, 8)}`;
 export type WithStock = { hemo: HemoData; stock: DemoData };
 
-function commit(data: HemoData, caseId: string, change: (c: HemoCase) => HemoCase, action: string, detail: string, now: Date, extra: Partial<HemoData> = {}): HemoData {
-  return { ...data, ...extra, revision: data.revision + 1, cases: data.cases.map(c => c.id === caseId ? change(c) : c), audit: [{ id: newId(), at: now.toISOString(), caseId, action, detail }, ...data.audit] };
+export function commit(data: HemoData, caseId: string, change: (c: HemoCase) => HemoCase, action: string, detail: string, now: Date, extra: Partial<HemoData> = {}): HemoData {
+  return { ...data, ...extra, revision: data.revision + 1, cases: data.cases.map(c => c.id === caseId ? change(c) : c), audit: [{ id: newId(), at: now.toISOString(), caseId, action, detail, by: '' }, ...data.audit] };
 }
-function requireStage(c: HemoCase, ...allowed: Stage[]) {
+export function requireStage(c: HemoCase, ...allowed: Stage[]) {
   if (!allowed.includes(c.stage)) throw new Error(`Esta ação não vale na etapa atual (${c.stage}).`);
 }
-const insured = (p: HemoPatient) => p.insurance.trim().toLocaleLowerCase('pt-BR') !== 'particular';
+export const insured = (p: HemoPatient) => p.insurance.trim().toLocaleLowerCase('pt-BR') !== 'particular';
+
+// ---------- Função renal e contraste ----------
+/**
+ * TFG estimada pela equação CKD-EPI 2021 (sem raça), em mL/min/1,73 m².
+ * Usa creatinina sérica (mg/dL), idade e sexo já registrados no paciente.
+ */
+export function egfr(creatinine: number | null, age: number, sex: 'F' | 'M') {
+  if (creatinine === null || creatinine <= 0 || !Number.isFinite(age)) return null;
+  const k = sex === 'F' ? 0.7 : 0.9, a = sex === 'F' ? -0.241 : -0.302, r = creatinine / k;
+  return Math.round(142 * Math.min(r, 1) ** a * Math.max(r, 1) ** -1.2 * 0.9938 ** age * (sex === 'F' ? 1.012 : 1));
+}
+/** Referências do serviço, ajustáveis: TFG abaixo da qual há risco renal com contraste e razão volume/TFG. */
+export const EGFR_ATTENTION = 60, EGFR_HIGH_RISK = 30, CONTRAST_EGFR_RATIO = 3.7;
+/** Creatinina de controle entre 48 e 72 h após o contraste. */
+export const RENAL_RECHECK_DAYS = 2;
+export function renalProfile(data: HemoData, c: HemoCase, now = new Date()) {
+  const p = patientOf(data, c), t = typeOf(data, c);
+  const value = egfr(p.creatinine, ageAt(p.birthDate, now), p.sex);
+  const risk = value === null ? null : value < EGFR_HIGH_RISK ? 'alto' as const : value < EGFR_ATTENTION ? 'atenção' as const : 'baixo' as const;
+  return { egfr: value, risk, contrastLimitMl: t.contrast && value !== null ? Math.round(value * CONTRAST_EGFR_RATIO) : null };
+}
+/** Aviso na sala quando o contraste passa do limite sugerido (TFG × razão do serviço). */
+export function contrastWarning(data: HemoData, c: HemoCase, contrastMl: number) {
+  const { contrastLimitMl } = renalProfile(data, c);
+  return contrastLimitMl !== null && contrastMl > contrastLimitMl ? `Contraste de ${contrastMl} mL acima do limite sugerido de ${contrastLimitMl} mL (TFG × ${CONTRAST_EGFR_RATIO.toLocaleString('pt-BR')}). Programe creatinina de controle.` : '';
+}
+/** Creatinina de controle após o contraste. Lesão renal aguda (critério KDIGO): alta ≥ 0,3 mg/dL ou ≥ 1,5 vez a basal. */
+export function recordRenalRecheck(data: HemoData, caseId: string, creatinine: number, now = new Date()): HemoData {
+  const c = findCase(data, caseId);
+  if (!c.renal.recheckDue) throw new Error('Este procedimento não tem creatinina de controle programada.');
+  if (!Number.isFinite(creatinine) || creatinine <= 0 || creatinine > 20) throw new Error('Informe a creatinina em mg/dL.');
+  const baseline = patientOf(data, c).creatinine;
+  // Em centésimos de mg/dL: 1,2 − 0,9 em ponto flutuante dá 0,2999… e não pode deixar de contar como alta de 0,3.
+  const cents = (v: number) => Math.round(v * 100);
+  const aki = baseline !== null && (cents(creatinine) - cents(baseline) >= 30 || cents(creatinine) * 2 >= cents(baseline) * 3);
+  return commit(data, caseId, x => ({ ...x, renal: { ...x.renal, recheckCreatinine: creatinine, recheckAt: now.toISOString(), aki } }), 'Creatinina de controle', `${creatinine.toLocaleString('pt-BR')} mg/dL${baseline !== null ? ` (basal ${baseline.toLocaleString('pt-BR')})` : ''}${aki ? ' · possível lesão renal aguda pelo contraste' : ''}`, now);
+}
+export function pendingRenalRechecks(data: HemoData, now = new Date()) {
+  return data.cases.filter(c => c.renal.recheckDue && c.renal.recheckCreatinine === null && c.stage !== 'Cancelado').map(c => ({ c, days: daysUntil(c.renal.recheckDue, now) })).sort((a, b) => a.days - b.days);
+}
 
 // ---------- 1. Pedido e autorização ----------
 export type CaseRequest = { patientId: string; typeId: string; requestedBy: string; indication: string; priority: 'Eletivo' | 'Urgência' };
@@ -147,7 +214,7 @@ export function requestCase(data: HemoData, input: CaseRequest, now = new Date()
   if (data.cases.some(c => c.patientId === patient.id && c.typeId === type.id && !['Encerrado', 'Cancelado'].includes(c.stage))) throw new Error('Este paciente já tem esse procedimento em andamento.');
   const needsAuth = type.needsAuthorization && insured(patient);
   const draft = caseSchema.parse({ ...input, id: newId(), createdAt: now.toISOString(), stage: needsAuth ? 'Autorização' : 'Agendamento', authorization: { status: needsAuth ? 'Pendente' : 'Não se aplica' } });
-  return { ...data, revision: data.revision + 1, cases: [draft, ...data.cases], audit: [{ id: newId(), at: now.toISOString(), caseId: draft.id, action: 'Pedido registrado', detail: `${type.name} · ${patient.name} · ${input.priority}` }, ...data.audit] };
+  return { ...data, revision: data.revision + 1, cases: [draft, ...data.cases], audit: [{ id: newId(), at: now.toISOString(), caseId: draft.id, action: 'Pedido registrado', detail: `${type.name} · ${patient.name} · ${input.priority}`, by: '' }, ...data.audit] };
 }
 /**
  * Decide a autorização. authorized = quantidade de OPME que o convênio liberou por item do pedido
@@ -195,7 +262,7 @@ export function opmeGaps(data: HemoData, catalog: Product[], c: HemoCase) {
 
 // ---------- Urgência: entra direto, fura a agenda e mede o porta-balão ----------
 export const DOOR_TO_BALLOON_TARGET_MIN = 90;
-export type EmergencyInput = { patientId: string; typeId: string; roomId: string; doctorId: string; indication: string; requestedBy: string; doorAt: string };
+export type EmergencyInput = { patientId: string; typeId: string; roomId: string; doctorId: string; indication: string; requestedBy: string; doorAt: string; ecgAt?: string };
 /** Urgência não espera autorização (convênio fica para regularizar) nem agenda livre: a sala é tomada agora. */
 export function startEmergency(data: HemoData, input: EmergencyInput, now = new Date()): HemoData {
   const patient = data.patients.find(p => p.id === input.patientId), type = data.types.find(t => t.id === input.typeId);
@@ -206,10 +273,12 @@ export function startEmergency(data: HemoData, input: EmergencyInput, now = new 
   if (!stamp.safeParse(input.doorAt).success) throw new Error('Informe a hora de chegada do paciente.');
   const at = localStamp(now);
   if (input.doorAt > at) throw new Error('A chegada não pode ser no futuro.');
+  const ecgAt = input.ecgAt?.trim() ?? '';
+  if (ecgAt && (!stamp.safeParse(ecgAt).success || ecgAt < input.doorAt || ecgAt > at)) throw new Error('O ECG deve ser entre a chegada e agora.');
   if (data.cases.some(c => c.patientId === patient.id && ['Sala', 'Recuperação'].includes(c.stage))) throw new Error('Este paciente já está em sala ou em recuperação.');
   const regularize = type.needsAuthorization && insured(patient);
-  const draft = caseSchema.parse({ id: newId(), patientId: patient.id, typeId: type.id, requestedBy: input.requestedBy || 'Emergência', indication: input.indication, priority: 'Urgência', createdAt: now.toISOString(), stage: 'Preparo', doorAt: input.doorAt, authorization: { status: regularize ? 'Regularizar' : 'Não se aplica' }, schedule: { roomId: input.roomId, doctorId: input.doctorId, start: at } });
-  return { ...data, revision: data.revision + 1, cases: [draft, ...data.cases], audit: [{ id: newId(), at: now.toISOString(), caseId: draft.id, action: 'Urgência aberta', detail: `${type.name} · ${patient.name} · chegada ${input.doorAt.slice(11)}` }, ...data.audit] };
+  const draft = caseSchema.parse({ id: newId(), patientId: patient.id, typeId: type.id, requestedBy: input.requestedBy || 'Emergência', indication: input.indication, priority: 'Urgência', createdAt: now.toISOString(), stage: 'Preparo', doorAt: input.doorAt, urgency: { ecgAt, teamCalledAt: '', teamArrivedAt: '' }, authorization: { status: regularize ? 'Regularizar' : 'Não se aplica' }, schedule: { roomId: input.roomId, doctorId: input.doctorId, start: at } });
+  return { ...data, revision: data.revision + 1, cases: [draft, ...data.cases], audit: [{ id: newId(), at: now.toISOString(), caseId: draft.id, action: 'Urgência aberta', detail: `${type.name} · ${patient.name} · chegada ${input.doorAt.slice(11)}`, by: '' }, ...data.audit] };
 }
 /** Eletivos que a urgência atropelou na mesma sala: precisam ser remarcados. */
 export function displacedBy(data: HemoData, c: HemoCase) {
@@ -276,7 +345,8 @@ export function safetyAlerts(data: HemoData, c: HemoCase) {
   const has = (list: string[], re: RegExp) => list.some(item => re.test(item.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()));
   if (t.contrast && has(p.allergies, /contraste|iodo/)) alerts.push({ level: 'alto', text: 'Alergia a contraste iodado registrada.' });
   if (t.contrast && p.creatinine === null) alerts.push({ level: 'atenção', text: 'Sem creatinina registrada para um procedimento com contraste.' });
-  if (t.contrast && p.creatinine !== null && p.creatinine >= 1.5) alerts.push({ level: 'alto', text: `Creatinina ${p.creatinine.toLocaleString('pt-BR')} mg/dL: avaliar risco renal com contraste.` });
+  const renal = renalProfile(data, c);
+  if (t.contrast && p.creatinine !== null && renal.egfr !== null && (renal.risk !== 'baixo' || p.creatinine >= 1.5)) alerts.push({ level: renal.risk === 'alto' ? 'alto' : 'atenção', text: `Creatinina ${p.creatinine.toLocaleString('pt-BR')} mg/dL · TFG estimada ${renal.egfr} mL/min/1,73 m²: risco renal com contraste. Limite sugerido de contraste: ${renal.contrastLimitMl} mL; prevenção conforme protocolo do serviço.` });
   if (has(p.medications, /varfarina|apixabana|rivaroxabana|dabigatrana|edoxabana|heparina|enoxaparina/)) alerts.push({ level: 'atenção', text: 'Usa anticoagulante: confirmar conduta antes do procedimento.' });
   if (t.contrast && has(p.medications, /metformina/)) alerts.push({ level: 'atenção', text: 'Usa metformina: confirmar conduta com o contraste.' });
   return alerts;
@@ -342,6 +412,8 @@ export function intraProblem(data: HemoData, c: HemoCase, intra: Intra) {
   return '';
 }
 export const FOLLOW_UP_DAYS = 30;
+/** Tempo até liberar a pulseira radial: referência do serviço, ajustável caso a caso conforme protocolo. */
+export const BAND_RELEASE_REFERENCE_MIN = 120;
 export function finishProcedure(data: HemoData, caseId: string, intra: Intra, now = new Date()): HemoData {
   const c = findCase(data, caseId);
   requireStage(c, 'Sala');
@@ -349,7 +421,12 @@ export function finishProcedure(data: HemoData, caseId: string, intra: Intra, no
   if (problem) throw new Error(problem);
   const due = addMinutes(`${intra.end.slice(0, 10)}T00:00`, FOLLOW_UP_DAYS * 24 * 60).slice(0, 10);
   const dtb = doorToBalloon({ ...c, intra });
-  return commit(data, caseId, x => ({ ...x, stage: 'Recuperação', intra: { ...intra, roomIn: x.intra.roomIn, complications: intra.complications.trim() }, followUp: { ...x.followUp, due } }), 'Procedimento concluído', `${intra.access} · contraste ${intra.contrastMl} mL · fluoroscopia ${intra.fluoroMin} min${dtb !== null ? ` · porta-balão ${dtb} min` : ''}`, now);
+  // Creatinina de controle quando a TFG já indica risco ou quando o contraste passou do limite sugerido.
+  const renal = renalProfile(data, c, now);
+  const recheck = typeOf(data, c).contrast && intra.contrastMl > 0 && (renal.risk === 'alto' || renal.risk === 'atenção' || (renal.contrastLimitMl !== null && intra.contrastMl > renal.contrastLimitMl));
+  const recheckDue = recheck ? addMinutes(`${intra.end.slice(0, 10)}T00:00`, RENAL_RECHECK_DAYS * 24 * 60).slice(0, 10) : '';
+  const band = intra.access.startsWith('Radial') && !c.band.placedAt ? { placedAt: intra.end, releaseMin: BAND_RELEASE_REFERENCE_MIN, removedAt: '' } : c.band;
+  return commit(data, caseId, x => ({ ...x, stage: 'Recuperação', intra: { ...intra, roomIn: x.intra.roomIn, complications: intra.complications.trim() }, followUp: { ...x.followUp, due }, renal: { ...x.renal, baselineEgfr: renal.egfr, contrastLimitMl: renal.contrastLimitMl, recheckDue }, band }), 'Procedimento concluído', `${intra.access} · contraste ${intra.contrastMl} mL · fluoroscopia ${intra.fluoroMin} min${dtb !== null ? ` · porta-balão ${dtb} min` : ''}${recheckDue ? ` · creatinina de controle em ${recheckDue.split('-').reverse().join('/')}` : ''}`, now);
 }
 
 // ---------- Dose de radiação ----------
@@ -406,7 +483,7 @@ export function signReport(data: HemoData, caseId: string, doctorId: string, now
 
 // ---------- 7. Faturamento e notas (simuladas) ----------
 export function billingItems(data: HemoData, catalog: Product[], c: HemoCase) {
-  return [typeOf(data, c).name, ...c.materials.map(m => `${m.quantity} × ${productOf(catalog, m.productId).name} (lote ${m.lot}${m.serial ? ` · série ${m.serial}` : ''})`)];
+  return [typeOf(data, c).name, ...c.materials.map(m => `${m.quantity} × ${productOf(catalog, m.productId).name} (lote ${m.lot}${m.serial ? ` · série ${m.serial}` : ''})`), ...c.meds.map(m => `Medicamento: ${m.drug} ${m.dose.toLocaleString('pt-BR')} ${m.unit} · ${m.route.toLocaleLowerCase('pt-BR')}`)];
 }
 /** Gera a conta e as notas do caso: uma de serviço e uma de reposição por fornecedor de consignado. Nenhuma é emitida de verdade. */
 export function closeBilling(data: HemoData, catalog: Product[], caseId: string, now = new Date()): HemoData {
@@ -573,6 +650,9 @@ export function copilotContext(data: HemoData, catalog: Product[], c: HemoCase, 
     observacoesPreparo: c.prepNotes,
     registroDaSala: c.intra.start ? { via: c.intra.access, inicio: c.intra.start, fim: c.intra.end, contrasteMl: c.intra.contrastMl, fluoroscopiaMin: c.intra.fluoroMin, kermaMgy: c.intra.kermaMgy, intercorrencias: c.intra.complications } : null,
     materiaisUsados: c.materials.map(m => `${m.quantity} × ${productOf(catalog, m.productId).name}${productOf(catalog, m.productId).implantable ? ' (implante)' : ''}`),
+    medicamentosNaSala: c.meds.map(m => `${m.at.slice(11)} · ${m.drug} ${m.dose} ${m.unit} · ${m.route}`),
+    tca: c.act.readings.length ? { alvoSegundos: c.act.target || null, leituras: c.act.readings.map(r => `${r.at.slice(11)} · ${r.seconds} s`) } : null,
+    funcaoRenal: { tfgEstimada: renalProfile(data, c, now).egfr, limiteContrasteSugeridoMl: renalProfile(data, c, now).contrastLimitMl, creatininaControle: c.renal.recheckCreatinine, lesaoRenalAguda: c.renal.aki },
     laudoAssinado: c.report.signedAt ? { descricao: withoutName(c.report.text, p.name), conclusao: withoutName(c.report.conclusion, p.name) } : null,
     recuperacao: c.recovery.destination ? c.recovery : null,
     achados: c.findings.map(f => ({ vaso: f.vessel, estenosePct: f.stenosis, tratamento: f.treatment })),
@@ -621,12 +701,16 @@ export function makeHemoData(now = new Date()): HemoData {
           { id: 'use-3', stockId: 'hs-6', productId: 'hem-5', lot: 'SF30-2612', serial: 'SN-FICT-30001', quantity: 1, at: now.toISOString() },
         ],
         followUp: { due: day(29) },
+        meds: [{ id: 'med-1', at: `${day(-1)}T14:08`, drug: 'Heparina não fracionada', dose: 7000, unit: 'UI', route: 'Intra-arterial' }, { id: 'med-2', at: `${day(-1)}T14:09`, drug: 'Nitroglicerina', dose: 200, unit: 'mcg', route: 'Intracoronária' }],
+        act: { target: 250, readings: [{ id: 'act-1', at: `${day(-1)}T14:25`, seconds: 268 }] },
+        band: { placedAt: `${day(-1)}T15:10`, releaseMin: 120, removedAt: `${day(-1)}T17:15` },
         recovery: { hemostasis: 'Pulseira de compressão radial por 2 h', stable: true, destination: 'Internação', notes: 'Observação por 24 h.' },
         findings: [{ id: 'f-1', vessel: 'Descendente anterior proximal', stenosis: 85, treatment: 'Pré-dilatação e implante de stent farmacológico 3,0 × 18 mm' }, { id: 'f-2', vessel: 'Coronária direita média', stenosis: 30, treatment: 'Tratamento clínico' }],
       }),
       // Urgência de madrugada, já faturada, com glosa aberta e contato de 30 dias atrasado.
       base('case-5', 'hp-5', 'iam', 'Encerrado', {
         priority: 'Urgência', requestedBy: 'Pronto-socorro', indication: 'Infarto agudo com supradesnivelamento de ST em parede inferior, dor há 2 h.', doorAt: `${day(-35)}T02:10`,
+        urgency: { ecgAt: `${day(-35)}T02:16`, teamCalledAt: `${day(-35)}T02:20`, teamArrivedAt: `${day(-35)}T02:32` },
         authorization: { status: 'Autorizada', guide: 'GUIA-000287', note: 'Regularizada após urgência' },
         opme: { justification: 'Urgência: infarto agudo com supra de ST.', items: [{ id: 'opme-7', productId: 'hem-6', requested: 1, authorized: 1 }, { id: 'opme-8', productId: 'hem-3', requested: 1, authorized: 1 }] },
         schedule: { roomId: 'sala-1', doctorId: 'doc-1', start: `${day(-35)}T02:30` }, prep: { consent: true, venousAccess: true }, timeout: timeoutDone,
@@ -648,5 +732,6 @@ export function makeHemoData(now = new Date()): HemoData {
       }),
     ],
     audit: [],
+    onCall: Array.from({ length: 7 }, (_, i) => ({ date: day(i), doctorId: i % 2 ? 'doc-2' : 'doc-1' })),
   });
 }

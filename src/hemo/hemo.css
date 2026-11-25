@@ -171,3 +171,57 @@
   .hemo-sheet > *:not(.panel-head) { margin-inline: 14px; }
   .hemo-table { display: block; overflow-x: auto; }
 }
+
+/* ---------- Funções clínicas: renal, urgência por etapas, medicamentos, pulseira, alta, consentimento, imagens, sobreaviso, reposição ---------- */
+.hemo-risk-high { color: var(--danger); }
+.hemo-risk-warn { color: var(--warn); }
+.hemo-step h3 svg, .hemo-meds h4 svg, .hemo-imaging h4 svg { vertical-align: -2px; margin-right: 4px; }
+.hemo-signed summary svg { vertical-align: -2px; margin-right: 4px; }
+.hemo-timeline summary, .hemo-discharge summary, .hemo-consent summary { color: var(--brand-900); }
+.hemo-timeline, .hemo-discharge, .hemo-consent { display: grid; gap: 12px; }
+.hemo-timeline[open], .hemo-discharge[open], .hemo-consent[open] { padding-bottom: 16px; }
+.hemo-contrast { display: flex; gap: 6px; align-items: flex-start; margin: 0; padding: 8px 12px; border-radius: 10px; background: var(--info-bg); color: #293a78; font-size: 12.5px; line-height: 1.45; }
+.hemo-contrast.is-over { background: var(--danger-bg); color: var(--danger); }
+.hemo-contrast svg { flex-shrink: 0; margin-top: 2px; }
+
+.hemo-meds, .hemo-imaging { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.hemo-meds h4, .hemo-imaging h4 { margin: 0; }
+.hemo-med-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.hemo-med-form label { flex: 0 1 auto; min-width: 100px; }
+.hemo-med-form .grow { flex: 1 1 200px; }
+.hemo-med-form input[type="number"] { width: 100px; }
+.hemo-act { display: flex; flex-wrap: wrap; gap: 10px 24px; }
+.hemo-act-readings { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hemo-act-readings.is-low { color: var(--danger); font-weight: 600; }
+
+.hemo-band { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--info-line); border-radius: 12px; background: var(--info-bg); }
+.hemo-band.is-late { border-color: var(--danger-line); background: var(--danger-bg); }
+.hemo-band-head { display: flex; gap: 10px; align-items: center; color: #293a78; }
+.hemo-band.is-late .hemo-band-head { color: var(--danger); }
+.hemo-band-head div { display: grid; gap: 2px; }
+.hemo-band-head strong { font-size: 14px; }
+.hemo-band-head small { color: inherit; opacity: .85; font-size: 12px; }
+
+.hemo-consent-text { margin: 0; padding: 12px 14px; border-left: 3px solid var(--brand-800); border-radius: 0 10px 10px 0; background: var(--surface-soft); color: var(--text); font-size: 13.5px; line-height: 1.6; }
+.hemo-signature { display: grid; gap: 6px; justify-items: start; }
+.hemo-signature canvas { width: 100%; max-width: 560px; height: 170px; border: 1px dashed var(--line-strong); border-radius: 12px; background: #fff linear-gradient(transparent calc(100% - 42px), var(--line) calc(100% - 42px), var(--line) calc(100% - 41px), transparent calc(100% - 41px)); touch-action: none; cursor: crosshair; }
+.hemo-consent-done img { height: 44px; max-width: 180px; border: 1px solid var(--line); border-radius: 8px; background: #fff; object-fit: contain; }
+
+.hemo-imaging-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+.hemo-imaging .text-link, .hemo-imaging-line .text-link { display: inline-flex; align-items: center; gap: 4px; }
+
+.hemo-oncall { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 0 20px 20px; }
+.hemo-oncall label { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 12.5px; font-weight: 600; }
+.hemo-oncall label.is-today { border-color: var(--brand-800); background: var(--brand-50); }
+.hemo-oncall span { text-transform: capitalize; color: var(--muted); }
+
+.hemo-orders { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; padding: 0 20px 20px; }
+.hemo-order { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; }
+.hemo-order header { display: flex; gap: 8px; align-items: center; color: var(--ink); }
+.hemo-order ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; font-size: 13px; }
+.hemo-order small { display: block; color: var(--muted); font-size: 11.5px; }
+
+@media (max-width: 640px) {
+  .hemo-med-form label, .hemo-med-form .grow { flex: 1 1 140px; }
+  .hemo-med-form input[type="number"] { width: 100%; }
+}

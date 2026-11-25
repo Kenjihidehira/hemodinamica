@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, Menu, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, LogOut, Menu, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
 import { availableQuantity, daysToExpiry, formatDate, getProduct as findProduct, makeDemoData, normalizeData, orderReservedQuantity, storageKey, withHemoCatalog, type DemoData, type Movement, type Stock, type Product } from './data';
 import Analytics from './Analytics';
 import Catalog from './Catalog';
@@ -13,6 +13,9 @@ import { readNotification } from './hospital/domain';
 import { useHospital } from './hospital/useHospital';
 import HemoWorkspace from './hemo/HemoWorkspace';
 import { useHemo } from './hemo/useHemo';
+import { AccessScreen } from './auth/AuthScreens';
+import { roleLabel } from './auth/domain';
+import { useAuth, type AuthSession } from './auth/useAuth';
 
 type Page = 'hemo' | 'agenda' | 'profiles' | 'analytics' | 'overview' | 'stock' | 'scan' | 'alerts' | 'catalog' | 'counts';
 type MovementType = Movement['type'];
@@ -102,11 +105,24 @@ function downloadCsv(data: DemoData) {
   const link = document.createElement('a'); link.href = url; link.download = 'jusimed-estoque-demonstracao.csv'; link.click(); URL.revokeObjectURL(url);
 }
 
+/** Ninguém vê o sistema sem entrar. Sem usuários, a primeira tela cria o administrador. */
 export default function App() {
-  const hospital = useHospital();
-  const hemo = useHemo();
+  const auth = useAuth();
+  return auth.user ? <Workspace auth={auth}/> : <AccessScreen auth={auth}/>;
+}
+
+function Workspace({ auth }: { auth: AuthSession }) {
+  const user = auth.user!;
+  const hospital = useHospital(user.name);
+  const hemo = useHemo(user.name);
   const hospitalConfig = hospital.data?.config;
-  const [data, setData] = useState<DemoData>(initialData);
+  const [data, setRawData] = useState<DemoData>(initialData);
+  /** Toda gravação do Estoque passa por aqui: movimentações novas levam o nome de quem está logado. */
+  const setData: typeof setRawData = (next) => setRawData((previous) => {
+    const value = typeof next === 'function' ? next(previous) : next;
+    const known = new Set(previous.movements.map((m) => m.id));
+    return value.movements.some((m) => !known.has(m.id)) ? { ...value, movements: value.movements.map((m) => known.has(m.id) ? m : { ...m, actor: user.name }) } : value;
+  });
   const products = data.products;
   const getProduct = (id: string) => findProduct(id, products);
   const [storageWarning, setStorageWarning] = useState(false);
@@ -236,7 +252,7 @@ export default function App() {
     if (found) { setSelectedId(found.id); setScanMessage(`Encontrado: ${getProduct(found.productId).name} · lote ${found.lot}.`); }
     else setScanMessage('Código não encontrado nos dados de demonstração.');
   }
-  function resetDemo() { if (window.confirm('Restaurar os dados fictícios e apagar as movimentações feitas neste navegador?')) { setData(withHemoCatalog(makeDemoData())); setSuccess('Dados de demonstração restaurados.'); } }
+  function resetDemo() { if (window.confirm('Restaurar os dados fictícios e apagar as movimentações feitas neste navegador?')) { setRawData(withHemoCatalog(makeDemoData())); setSuccess('Dados de demonstração restaurados.'); } }
 
   const visibleNav = primaryNav.filter((item) => hospitalConfig?.stockEnabled !== false || ['hemo', 'agenda', 'profiles'].includes(item.page));
   const searchableAreas = hospitalConfig?.stockEnabled === false
@@ -271,14 +287,14 @@ export default function App() {
               {quickMatches.length > 0 && <div className="quick-search-results" role="listbox" aria-label="Áreas encontradas">{quickMatches.map(({ page: target, label, icon: Icon }) => <button key={target} role="option" onClick={() => { navigate(target); setQuickSearch(''); }}><Icon size={17}/><span>{label}</span><ArrowRight size={15}/></button>)}</div>}
             </div>
             <div className="notification-center"><button className="utility-button" aria-label="Abrir notificações" aria-expanded={notificationOpen} aria-controls="notification-panel" onClick={() => setNotificationOpen(current => !current)}><Bell size={19}/>{notificationCount > 0 && <span/>}</button>{notificationOpen && <section id="notification-panel" className="notification-panel" aria-label="Central de notificações"><div className="notification-panel-head"><div><strong>Notificações</strong><small>{notificationCount} {notificationCount === 1 ? 'pendência' : 'pendências'}</small></div><button className="icon-button" aria-label="Fechar notificações" onClick={() => setNotificationOpen(false)}><X size={17}/></button></div><div className="notification-panel-list">{recentHospitalNotifications.map(item => <button key={item.id} className={item.read ? 'is-read' : ''} onClick={() => { if (!item.read) hospital.update(current => readNotification(current, item.id)); navigate('agenda'); }}><CalendarDays size={17}/><span><strong>{item.title}</strong><small>{new Date(item.createdAt).toLocaleString('pt-BR', { timeZone: hospitalConfig?.timezone ?? 'America/Sao_Paulo' })}</small></span></button>)}{recentHospitalNotifications.length === 0 && <p>Nenhuma notificação recente da agenda.</p>}<button className="stock-notification" onClick={() => navigate('alerts')}><Bell size={17}/><span><strong>Alertas de estoque</strong><small>{alertStock.length} {alertStock.length === 1 ? 'item requer' : 'itens requerem'} atenção</small></span><ArrowRight size={16}/></button></div></section>}</div>
-            <button className={`account-summary ${page === 'profiles' ? 'is-active' : ''}`} aria-label="Abrir perfis de pacientes e profissionais" aria-current={page === 'profiles' ? 'page' : undefined} onClick={() => navigate('profiles')}><span>PF</span><div><strong>Perfis</strong><small>Pacientes e equipe</small></div></button>
+            <div className="account-area"><button className={`account-summary ${page === 'profiles' ? 'is-active' : ''}`} aria-label={`${user.name}, ${roleLabel[user.role]}. Abrir perfis de pacientes e profissionais`} aria-current={page === 'profiles' ? 'page' : undefined} onClick={() => navigate('profiles')}><span>{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('pt-BR')}</span><div><strong>{user.name}</strong><small>{roleLabel[user.role]} · Perfis</small></div></button><button className="icon-button account-logout" aria-label="Sair do sistema" title="Sair" onClick={() => { if (window.confirm('Sair do sistema?')) auth.logout(); }}><LogOut size={18}/></button></div>
           </div>
         </div>
         {stockPages.has(page) && <nav className="stock-section-nav" aria-label="Seções do estoque">{stockSections.map(({ page: target, label, icon: Icon }) => <button key={target} type="button" aria-current={page === target ? 'page' : undefined} onClick={() => navigate(target)}><Icon size={17} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span>{target === 'alerts' && alertStock.length > 0 && <strong aria-label={`${alertStock.length} alertas`}>{alertStock.length}</strong>}</button>)}</nav>}
         <div className="page-actions-row"><div className="head-actions">{page === 'stock' && <button className="button secondary" onClick={() => downloadCsv(data)}><Download size={16}/> Exportar CSV</button>}{page === 'analytics' && <button className="button secondary" onClick={() => navigate('stock')}>Ver estoque <ArrowRight size={16}/></button>}{['overview', 'stock', 'alerts'].includes(page) && <button className="button primary" onClick={() => openMovement()}><Plus size={17}/> Nova movimentação</button>}</div></div>
         {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot}/>}
         {page === 'agenda' && <HospitalWorkspace key="agenda" store={hospital}/>}
-        {page === 'profiles' && <HospitalWorkspace key="profiles" store={hospital} profiles/>}
+        {page === 'profiles' && <HospitalWorkspace key="profiles" store={hospital} auth={auth} profiles/>}
         {storageWarning && <p role="alert" className="module-error">Não foi possível salvar no navegador. As alterações desta sessão podem ser perdidas ao fechar a página.</p>}
         {success && <div className="notice success" role="status"><Check size={17}/>{success}<button aria-label="Fechar aviso" onClick={() => setSuccess('')}><X size={15}/></button></div>}
         {page === 'catalog' && <Catalog data={data} onChange={setData}/>}

@@ -7,8 +7,10 @@ function load() {
   try { const raw = localStorage.getItem(hospitalStorageKey); return { data: raw ? parseHospitalData(JSON.parse(raw)) : makeHospitalData(), error: '' }; }
   catch { return { data: null, error: 'Não foi possível ler a agenda salva. A base original foi preservada. Exporte uma cópia para revisão antes de recuperar os dados.' }; }
 }
-export function useHospital() {
+/** actor = usuário logado; entradas novas do histórico da agenda levam o nome dele. */
+export function useHospital(actor = '') {
   const [state, setState] = useState(load);
+  const actorRef = useRef(actor); actorRef.current = actor;
   const latest = useRef(state); latest.current = state;
   const [error, setError] = useState('');
   useEffect(() => {
@@ -23,7 +25,8 @@ export function useHospital() {
       if (!current) throw new Error('A base está indisponível. Recupere os dados antes de alterar a agenda.');
       const raw = localStorage.getItem(hospitalStorageKey);
       if (raw && parseHospitalData(JSON.parse(raw)).revision !== current.revision) { const next = load(); latest.current = next; setState(next); throw new Error('A agenda foi atualizada em outra aba. Confira e tente novamente.'); }
-      const next = parseHospitalData(change(current));
+      const changed = change(current), known = new Set(current.audit.map(a => a.id));
+      const next = parseHospitalData(actorRef.current ? { ...changed, audit: changed.audit.map(a => known.has(a.id) || a.by ? a : { ...a, by: actorRef.current }) } : changed);
       localStorage.setItem(hospitalStorageKey, JSON.stringify(next));
       const result = { data: next, error: '' }; latest.current = result; setState(result);
       return true;

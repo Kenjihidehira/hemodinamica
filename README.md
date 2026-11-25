@@ -39,7 +39,7 @@ Abra o endereço exibido no terminal. Para testar a leitura pela câmera em um c
 - Exportação CSV da posição de estoque.
 - Persistência local no navegador e opção de restaurar os dados fictícios.
 
-**Não há** servidor, autenticação real, banco de dados compartilhado, sincronização contínua com planilha/ERP, controle de múltiplas empresas, validação regulatória ou auditoria imutável. O bipador deve operar como teclado; não há integração proprietária. A revisão de inventário é simulada pelo mesmo usuário. O armazenamento local pode ser apagado pelo próprio navegador e não coordena edições simultâneas entre abas ou dispositivos. Não insira dados reais ou pessoais.
+O login com perfis de acesso (administrador, médico, equipe) funciona só neste navegador; veja [docs/acesso-e-permissoes.md](docs/acesso-e-permissoes.md). **Não há** servidor, autenticação em servidor, banco de dados compartilhado, sincronização contínua com planilha/ERP, controle de múltiplas empresas, validação regulatória ou auditoria imutável. O bipador deve operar como teclado; não há integração proprietária. A revisão de inventário é simulada pelo mesmo usuário. O armazenamento local pode ser apagado pelo próprio navegador e não coordena edições simultâneas entre abas ou dispositivos. Não insira dados reais ou pessoais.
 
 ## Verificação
 
