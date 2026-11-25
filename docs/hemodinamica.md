@@ -9,14 +9,65 @@
 | Autorização | Só para convênio. Número da guia para aprovar; motivo para negar (negado cancela). |
 | Agendamento | Sala, hemodinamicista e horário. Só aparecem horários sem conflito: a sala fica presa durante o procedimento **e** o preparo dela depois; médico e paciente não podem ter dois procedimentos ao mesmo tempo. |
 | Preparo | Jejum, exames revisados, alergia a contraste avaliada, conduta com anticoagulantes, consentimento, acesso venoso e os 4 itens do time-out. |
-| Sala | Materiais usados saem do lote escolhido e ficam ligados ao paciente (lote vencido não aparece; não sai mais que o saldo; dá para devolver). Via de acesso, início e fim, contraste (obrigatório quando o procedimento usa), fluoroscopia, dose e intercorrências. |
+| Sala | Materiais usados saem do lote escolhido e ficam ligados ao paciente (lote vencido não aparece; não sai mais que o saldo; dá para devolver). Via de acesso, início e fim, contraste (obrigatório quando o procedimento usa), fluoroscopia, dose, pressões (opcional) e intercorrências em lista fechada. |
 | Recuperação | Hemostasia, sinais estáveis confirmados e destino. |
-| Laudo | Achados por vaso, descrição e conclusão. Só o hemodinamicista do procedimento assina; depois de assinado não muda. |
+| Laudo | Achados por segmento coronário (ver [Laudo estruturado](#laudo-estruturado)), descrição e conclusão. Só o hemodinamicista do procedimento assina; depois de assinado não muda. |
 | Faturamento | Fecha a conta e prepara a nota de serviço e uma nota de reposição por fornecedor de consignado. **Notas simuladas: nada é emitido.** |
 
 Cancelamento com motivo é possível até o preparo. Cada ação fica no histórico do caso.
 
 Alertas automáticos (sem IA): alergia a contraste, creatinina ≥ 1,5 mg/dL ou ausente com contraste, anticoagulante, metformina e dose de radiação (abaixo).
+
+## Laudo estruturado
+
+As listas ficam em `src/hemo/reportCatalog.ts`, e as regras em `src/hemo/report.ts`. Antes de virarem padrão no serviço, os segmentos, as definições de intercorrência e as referências abaixo precisam ser validados com os hemodinamicistas.
+
+### Achados
+
+Cada lesão é um achado, com:
+
+- **Lesão:** segmento da árvore coronária (tronco, DA, circunflexa, coronária direita e seus ramos, enxertos), estenose em %, fluxo TIMI inicial, calcificação, trombo e bifurcação.
+  - Para vasos fora da lista, como na arteriografia periférica, há "Outro vaso", com texto livre.
+- **Avaliação funcional:** FFR ou iFR, com o valor.
+- **Conduta:** tratamento clínico, angioplastia com stent, angioplastia com balão ou indicação de cirurgia.
+- **Stent:** implante escolhido entre os registrados na sala, com a série. Diâmetro e comprimento vêm do nome do produto e podem ser ajustados.
+- **Resultado da angioplastia:** estenose residual e fluxo TIMI final.
+
+### Regras de coerência
+
+O laudo não é salvo enquanto um achado tiver um destes problemas:
+
+- oclusão total (100%) com TIMI 2 ou 3;
+- FFR ou iFR sem valor, ou com valor fora de 0,30 a 1,00;
+- stent sem medidas plausíveis, ou com um implante que não foi usado no caso;
+- angioplastia sem TIMI final;
+- estenose residual maior que a inicial.
+
+Campos que não fazem sentido para a conduta escolhida são limpos ao salvar. Exemplo: stent marcado num achado com tratamento clínico.
+
+### Texto do laudo
+
+- Cada achado mostra a frase que vai para o laudo, por exemplo: "Descendente anterior proximal: estenose de 85%, fluxo TIMI 3, calcificação moderada. Angioplastia com stent 3 × 18 mm (…, série …). Estenose residual de 0%, fluxo final TIMI 3."
+- **Montar descrição a partir dos achados** monta a descrição sem IA, só com o que foi registrado: via de acesso, pressões, achados, contraste, fluoroscopia, dose e intercorrências. O médico revisa e escreve a conclusão.
+- O copilot recebe os mesmos campos e a frase de cada achado.
+
+### Intercorrências e pressões na sala
+
+- **Intercorrências:** lista fechada, com dissecção, perfuração, no-reflow, oclusão aguda, arritmia tratada, instabilidade hemodinâmica, reação ao contraste, sangramento ou hematoma no acesso, AVC ou AIT, óbito em sala e "Outra".
+  - "Outra" exige descrição.
+  - O campo de detalhes continua livre.
+- **Pressões:** aorta sistólica e diastólica e pressão diastólica final do VE (PD2VE), todas opcionais. Quando informadas, precisam estar numa faixa plausível.
+
+### Indicadores do laudo
+
+- **Resultado angiográfico ótimo:** TIMI 3 final com estenose residual abaixo de 20% (`RESIDUAL_TARGET_PCT`).
+- **FFR ou iFR nas lesões intermediárias:** estenoses de 40 a 69%.
+- **Stents implantados.**
+- **Casos com intercorrência.**
+- **Intercorrências por tipo.**
+- **Lesões significativas e tratadas por artéria:** ≥ 50% no tronco e ≥ 70% nas demais (`SIGNIFICANT_STENOSIS`).
+
+Laudos salvos antes desta versão continuam abrindo. Os achados antigos, sem segmento, ficam fora das contas por artéria.
 
 ## OPME e autorização
 

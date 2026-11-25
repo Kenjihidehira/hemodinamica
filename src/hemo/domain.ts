@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { availableQuantity, daysToExpiry, HEMO_CATEGORY, HEMO_LOCATION, type DemoData, type Product } from '../data.ts';
 import { consumeForPatient, receiveConsignment, returnFromPatient } from '../domain.ts';
+import { calcificationGrades, complicationTypes, physiologyKinds, segmentNames, therapies, timiGrades } from './reportCatalog.ts';
+import { describeFinding, findingProblem, normalizeFinding, pressureText } from './report.ts';
 
 /**
  * Hemodinâmica: do pedido médico ao faturamento.
@@ -34,7 +36,26 @@ const procedureTypeSchema = z.object({ id: z.string(), name: text.min(1), durati
 
 /** Material usado no paciente: aponta para a posição (produto + lote + local) do Estoque do hospital. serial = etiqueta do implante. */
 const usedMaterialSchema = z.object({ id: z.string(), stockId: z.string(), productId: z.string(), lot: z.string(), serial: text.default(''), quantity: z.number().int().min(1), at: z.string(), replenishedAt: z.string().default('') });
-const findingSchema = z.object({ id: z.string(), vessel: text.min(1, 'Informe o vaso.'), stenosis: z.number().int().min(0).max(100), treatment: text.default('') });
+/**
+ * Achado do laudo. vessel é o nome mostrado (igual ao segmento quando ele é escolhido; texto livre para vasos fora da lista).
+ * Os campos estruturados têm padrão vazio, então laudos salvos antes continuam válidos.
+ */
+const timi = z.union([z.enum(timiGrades), z.literal('')]).default('');
+export const findingSchema = z.object({
+  id: z.string(), vessel: text.min(1, 'Informe o vaso.'), stenosis: z.number().int().min(0).max(100), treatment: text.default(''),
+  segment: z.union([z.enum(segmentNames), z.literal('')]).default(''),
+  timiPre: timi,
+  calcification: z.union([z.enum(calcificationGrades), z.literal('')]).default(''),
+  thrombus: z.boolean().default(false), bifurcation: z.boolean().default(false),
+  physiology: z.object({ kind: z.union([z.enum(physiologyKinds), z.literal('')]).default(''), value: z.number().nullable().default(null) }).default({ kind: '', value: null }),
+  therapy: z.union([z.enum(therapies), z.literal('')]).default(''),
+  /** Stent: materialId aponta para o implante registrado na sala (traz a série); diâmetro e comprimento em mm. */
+  stent: z.object({ materialId: z.string().default(''), diameterMm: z.number().min(0).default(0), lengthMm: z.number().min(0).default(0) }).default({ materialId: '', diameterMm: 0, lengthMm: 0 }),
+  residual: z.number().int().min(0).max(100).nullable().default(null),
+  timiPost: timi,
+});
+const emptyPressures = { aoSystolic: null, aoDiastolic: null, lvedp: null };
+const pressureSchema = z.object({ aoSystolic: z.number().nullable().default(null), aoDiastolic: z.number().nullable().default(null), lvedp: z.number().nullable().default(null) }).default(emptyPressures);
 const invoiceSchema = z.object({ id: z.string(), kind: z.enum(['Serviço', 'Reposição de consignado']), recipient: z.string(), items: z.array(z.string()), createdAt: z.string(), status: z.literal('Simulada') });
 /** OPME pedido ao convênio: quantidade solicitada e quantidade que o convênio autorizou. */
 const opmeItemSchema = z.object({ id: z.string(), productId: z.string(), requested: z.number().int().min(1, 'Quantidade de OPME deve ser pelo menos 1.'), authorized: z.number().int().min(0).default(0) });
@@ -69,7 +90,12 @@ const caseSchema = z.object({
   schedule: z.object({ roomId: z.string(), doctorId: z.string(), start: stamp }).nullable().default(null),
   prep: prepSchema, prepNotes: text.default(''),
   timeout: timeoutSchema,
-  intra: z.object({ roomIn: optionalStamp, start: optionalStamp, balloonAt: optionalStamp, end: optionalStamp, access: z.union([z.enum(accessRoutes), z.literal('')]).default(''), contrastMl: z.number().min(0).default(0), fluoroMin: z.number().min(0).default(0), kermaMgy: z.number().min(0).default(0), complications: text.default('') }).default({ roomIn: '', start: '', balloonAt: '', end: '', access: '', contrastMl: 0, fluoroMin: 0, kermaMgy: 0, complications: '' }),
+  intra: z.object({ roomIn: optionalStamp, start: optionalStamp, balloonAt: optionalStamp, end: optionalStamp, access: z.union([z.enum(accessRoutes), z.literal('')]).default(''), contrastMl: z.number().min(0).default(0), fluoroMin: z.number().min(0).default(0), kermaMgy: z.number().min(0).default(0), complications: text.default(''),
+    /** Intercorrências em lista fechada; complications guarda os detalhes em texto. */
+    events: z.array(z.enum(complicationTypes)).default([]),
+    /** Pressões medidas na sala (mmHg): aorta sistólica e diastólica, pressão diastólica final do VE. */
+    pressures: pressureSchema,
+  }).default({ roomIn: '', start: '', balloonAt: '', end: '', access: '', contrastMl: 0, fluoroMin: 0, kermaMgy: 0, complications: '', events: [], pressures: emptyPressures }),
   materials: z.array(usedMaterialSchema).default([]),
   recovery: z.object({ hemostasis: text.default(''), stable: z.boolean().default(false), destination: z.union([z.enum(destinations), z.literal('')]).default(''), notes: text.default('') }).default({ hemostasis: '', stable: false, destination: '', notes: '' }),
   findings: z.array(findingSchema).default([]),
@@ -402,6 +428,15 @@ export function returnMaterial(data: HemoData, stock: DemoData, caseId: string, 
 export function usableLots(stock: DemoData) {
   return stock.stock.filter(s => productOf(stock.products, s.productId).category === HEMO_CATEGORY && availableQuantity(s) > 0).sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
 }
+/** Pressões são opcionais; quando informadas, precisam estar numa faixa fisiológica plausível (mmHg). */
+export function pressureProblem(p: Intra['pressures']) {
+  const out = (v: number | null, min: number, max: number) => v !== null && (!Number.isFinite(v) || v < min || v > max);
+  if (out(p.aoSystolic, 40, 300)) return 'Pressão sistólica da aorta entre 40 e 300 mmHg.';
+  if (out(p.aoDiastolic, 20, 200)) return 'Pressão diastólica da aorta entre 20 e 200 mmHg.';
+  if (p.aoSystolic !== null && p.aoDiastolic !== null && p.aoDiastolic >= p.aoSystolic) return 'A pressão diastólica da aorta deve ser menor que a sistólica.';
+  if (out(p.lvedp, 0, 60)) return 'Pressão diastólica final do VE entre 0 e 60 mmHg.';
+  return '';
+}
 export function intraProblem(data: HemoData, c: HemoCase, intra: Intra) {
   if (!intra.access) return 'Informe a via de acesso.';
   if (!intra.start || !intra.end) return 'Informe início e fim do procedimento.';
@@ -409,7 +444,8 @@ export function intraProblem(data: HemoData, c: HemoCase, intra: Intra) {
   if (c.intra.roomIn && intra.start < c.intra.roomIn) return 'O início não pode ser antes da entrada na sala.';
   if (intra.balloonAt && (intra.balloonAt < intra.start || intra.balloonAt > intra.end)) return 'A abertura da artéria deve ficar entre o início e o fim.';
   if (typeOf(data, c).contrast && intra.contrastMl <= 0) return 'Informe o volume de contraste usado.';
-  return '';
+  if ((intra.events ?? []).includes('Outra') && !intra.complications.trim()) return 'Descreva a intercorrência marcada como "Outra".';
+  return pressureProblem(intra.pressures ?? emptyPressures);
 }
 export const FOLLOW_UP_DAYS = 30;
 /** Tempo até liberar a pulseira radial: referência do serviço, ajustável caso a caso conforme protocolo. */
@@ -426,7 +462,8 @@ export function finishProcedure(data: HemoData, caseId: string, intra: Intra, no
   const recheck = typeOf(data, c).contrast && intra.contrastMl > 0 && (renal.risk === 'alto' || renal.risk === 'atenção' || (renal.contrastLimitMl !== null && intra.contrastMl > renal.contrastLimitMl));
   const recheckDue = recheck ? addMinutes(`${intra.end.slice(0, 10)}T00:00`, RENAL_RECHECK_DAYS * 24 * 60).slice(0, 10) : '';
   const band = intra.access.startsWith('Radial') && !c.band.placedAt ? { placedAt: intra.end, releaseMin: BAND_RELEASE_REFERENCE_MIN, removedAt: '' } : c.band;
-  return commit(data, caseId, x => ({ ...x, stage: 'Recuperação', intra: { ...intra, roomIn: x.intra.roomIn, complications: intra.complications.trim() }, followUp: { ...x.followUp, due }, renal: { ...x.renal, baselineEgfr: renal.egfr, contrastLimitMl: renal.contrastLimitMl, recheckDue }, band }), 'Procedimento concluído', `${intra.access} · contraste ${intra.contrastMl} mL · fluoroscopia ${intra.fluoroMin} min${dtb !== null ? ` · porta-balão ${dtb} min` : ''}${recheckDue ? ` · creatinina de controle em ${recheckDue.split('-').reverse().join('/')}` : ''}`, now);
+  const events = [...new Set(intra.events ?? [])];
+  return commit(data, caseId, x => ({ ...x, stage: 'Recuperação', intra: { ...intra, roomIn: x.intra.roomIn, complications: intra.complications.trim(), events, pressures: intra.pressures ?? emptyPressures }, followUp: { ...x.followUp, due }, renal: { ...x.renal, baselineEgfr: renal.egfr, contrastLimitMl: renal.contrastLimitMl, recheckDue }, band }), 'Procedimento concluído', `${intra.access} · contraste ${intra.contrastMl} mL · fluoroscopia ${intra.fluoroMin} min${dtb !== null ? ` · porta-balão ${dtb} min` : ''}${events.length ? ` · intercorrências: ${events.join(', ')}` : ''}${recheckDue ? ` · creatinina de controle em ${recheckDue.split('-').reverse().join('/')}` : ''}`, now);
 }
 
 // ---------- Dose de radiação ----------
@@ -468,7 +505,8 @@ export type ReportDraft = { findings: Finding[]; text: string; conclusion: strin
 export function saveReport(data: HemoData, caseId: string, draft: ReportDraft, now = new Date()): HemoData {
   const c = findCase(data, caseId);
   requireStage(c, 'Laudo');
-  const findings = draft.findings.map(f => findingSchema.parse(f));
+  const findings = draft.findings.map(f => normalizeFinding(findingSchema.parse(f)));
+  findings.forEach((f, i) => { const problem = findingProblem(f, c); if (problem) throw new Error(`Achado ${i + 1}${f.vessel ? ` (${f.vessel})` : ''}: ${problem}`); });
   return commit(data, caseId, x => ({ ...x, findings, report: { ...x.report, text: draft.text, conclusion: draft.conclusion, copilotDraft: draft.copilotDraft } }), 'Laudo salvo', draft.copilotDraft ? 'Rascunho do copilot revisado pelo médico' : 'Rascunho manual', now);
 }
 export function signReport(data: HemoData, caseId: string, doctorId: string, now = new Date()): HemoData {
@@ -621,7 +659,7 @@ export function hemoIndicators(data: HemoData, catalog: Product[], now = new Dat
   const byDoctor = data.doctors.map(d => { const mine = done.filter(c => c.schedule?.doctorId === d.id); return { doctor: d, procedures: mine.length, fluoroMin: mine.reduce((s, c) => s + c.intra.fluoroMin, 0), kermaMgy: mine.reduce((s, c) => s + c.intra.kermaMgy, 0) }; });
   return {
     done: done.length,
-    complications: done.filter(c => c.intra.complications).length,
+    complications: done.filter(c => c.intra.complications || c.intra.events.length).length,
     avgContrastMl: done.length ? Math.round(done.reduce((s, c) => s + c.intra.contrastMl, 0) / done.length) : null,
     radialShare: done.length ? Math.round(100 * done.filter(c => c.intra.access.startsWith('Radial')).length / done.length) : null,
     doorToBalloon: { cases: dtb, median: median(dtb.map(x => x.minutes)), withinTarget: dtb.filter(x => x.minutes <= DOOR_TO_BALLOON_TARGET_MIN).length },
@@ -648,14 +686,20 @@ export function copilotContext(data: HemoData, catalog: Product[], c: HemoCase, 
     alertasDoSistema: safetyAlerts(data, c).map(a => a.text),
     preparoPendente: c.stage === 'Preparo' ? prepMissing(c) : [],
     observacoesPreparo: c.prepNotes,
-    registroDaSala: c.intra.start ? { via: c.intra.access, inicio: c.intra.start, fim: c.intra.end, contrasteMl: c.intra.contrastMl, fluoroscopiaMin: c.intra.fluoroMin, kermaMgy: c.intra.kermaMgy, intercorrencias: c.intra.complications } : null,
+    registroDaSala: c.intra.start ? { via: c.intra.access, inicio: c.intra.start, fim: c.intra.end, contrasteMl: c.intra.contrastMl, fluoroscopiaMin: c.intra.fluoroMin, kermaMgy: c.intra.kermaMgy, intercorrencias: { lista: c.intra.events, detalhes: c.intra.complications }, pressoes: pressureText(c.intra.pressures) || null } : null,
     materiaisUsados: c.materials.map(m => `${m.quantity} × ${productOf(catalog, m.productId).name}${productOf(catalog, m.productId).implantable ? ' (implante)' : ''}`),
     medicamentosNaSala: c.meds.map(m => `${m.at.slice(11)} · ${m.drug} ${m.dose} ${m.unit} · ${m.route}`),
     tca: c.act.readings.length ? { alvoSegundos: c.act.target || null, leituras: c.act.readings.map(r => `${r.at.slice(11)} · ${r.seconds} s`) } : null,
     funcaoRenal: { tfgEstimada: renalProfile(data, c, now).egfr, limiteContrasteSugeridoMl: renalProfile(data, c, now).contrastLimitMl, creatininaControle: c.renal.recheckCreatinine, lesaoRenalAguda: c.renal.aki },
     laudoAssinado: c.report.signedAt ? { descricao: withoutName(c.report.text, p.name), conclusao: withoutName(c.report.conclusion, p.name) } : null,
     recuperacao: c.recovery.destination ? c.recovery : null,
-    achados: c.findings.map(f => ({ vaso: f.vessel, estenosePct: f.stenosis, tratamento: f.treatment })),
+    achados: c.findings.map(f => ({
+      vaso: f.vessel, segmentoPadronizado: f.segment || null, estenosePct: f.stenosis, timiInicial: f.timiPre || null, calcificacao: f.calcification || null,
+      trombo: f.thrombus, bifurcacao: f.bifurcation, fisiologia: f.physiology.kind && f.physiology.value !== null ? `${f.physiology.kind} ${f.physiology.value}` : null,
+      conduta: f.therapy || null, stentMm: f.stent.diameterMm && f.stent.lengthMm ? `${f.stent.diameterMm} × ${f.stent.lengthMm}` : null,
+      estenoseResidualPct: f.residual, timiFinal: f.timiPost || null, observacao: f.treatment || null,
+      resumo: describeFinding(f, catalog, c),
+    })),
   };
 }
 
@@ -693,7 +737,7 @@ export function makeHemoData(now = new Date()): HemoData {
         indication: 'Angina estável refratária, lesão em descendente anterior proximal.', authorization: { status: 'Autorizada', guide: 'GUIA-000301' },
         opme: { justification: 'Lesão grave em descendente anterior proximal com angina refratária ao tratamento clínico.', items: [{ id: 'opme-4', productId: 'hem-3', requested: 1, authorized: 1 }, { id: 'opme-5', productId: 'hem-4', requested: 1, authorized: 1 }, { id: 'opme-6', productId: 'hem-5', requested: 1, authorized: 1 }] },
         schedule: { roomId: 'sala-2', doctorId: 'doc-2', start: `${day(-1)}T14:00` }, prep: prepDone, timeout: timeoutDone,
-        intra: { roomIn: `${day(-1)}T13:55`, start: `${day(-1)}T14:05`, end: `${day(-1)}T15:10`, access: 'Radial direita', contrastMl: 140, fluoroMin: 14, kermaMgy: 980, complications: '' },
+        intra: { roomIn: `${day(-1)}T13:55`, start: `${day(-1)}T14:05`, end: `${day(-1)}T15:10`, access: 'Radial direita', contrastMl: 140, fluoroMin: 14, kermaMgy: 980, complications: '', pressures: { aoSystolic: 132, aoDiastolic: 74, lvedp: 14 } },
         materials: [
           // Posições hs-* e produtos hem-* do Estoque (ver withHemoCatalog em data.ts).
           { id: 'use-1', stockId: 'hs-4', productId: 'hem-3', lot: 'FG14-2610', quantity: 1, at: now.toISOString() },
@@ -705,7 +749,10 @@ export function makeHemoData(now = new Date()): HemoData {
         act: { target: 250, readings: [{ id: 'act-1', at: `${day(-1)}T14:25`, seconds: 268 }] },
         band: { placedAt: `${day(-1)}T15:10`, releaseMin: 120, removedAt: `${day(-1)}T17:15` },
         recovery: { hemostasis: 'Pulseira de compressão radial por 2 h', stable: true, destination: 'Internação', notes: 'Observação por 24 h.' },
-        findings: [{ id: 'f-1', vessel: 'Descendente anterior proximal', stenosis: 85, treatment: 'Pré-dilatação e implante de stent farmacológico 3,0 × 18 mm' }, { id: 'f-2', vessel: 'Coronária direita média', stenosis: 30, treatment: 'Tratamento clínico' }],
+        findings: [
+          { id: 'f-1', segment: 'Descendente anterior proximal', vessel: 'Descendente anterior proximal', stenosis: 85, timiPre: '3', calcification: 'Moderada', therapy: 'Angioplastia com stent', stent: { materialId: 'use-3', diameterMm: 3, lengthMm: 18 }, residual: 0, timiPost: '3', treatment: 'Pré-dilatação com balão 2,5 × 15 mm' },
+          { id: 'f-2', segment: 'Coronária direita média', vessel: 'Coronária direita média', stenosis: 30, timiPre: '3', calcification: 'Leve', therapy: 'Tratamento clínico' },
+        ],
       }),
       // Urgência de madrugada, já faturada, com glosa aberta e contato de 30 dias atrasado.
       base('case-5', 'hp-5', 'iam', 'Encerrado', {
@@ -720,7 +767,7 @@ export function makeHemoData(now = new Date()): HemoData {
           { id: 'use-5', stockId: 'hs-7', productId: 'hem-6', lot: 'SF35-2701', serial: 'SN-FICT-35001', quantity: 1, at: `${day(-35)}T06:05:00.000Z`, replenishedAt: `${day(-33)}T12:00:00.000Z` },
         ],
         recovery: { hemostasis: 'Pulseira de compressão radial por 2 h', stable: true, destination: 'UTI', notes: '' },
-        findings: [{ id: 'f-3', vessel: 'Coronária direita proximal', stenosis: 100, treatment: 'Angioplastia primária com stent farmacológico 3,5 × 23 mm' }],
+        findings: [{ id: 'f-3', segment: 'Coronária direita proximal', vessel: 'Coronária direita proximal', stenosis: 100, timiPre: '0', thrombus: true, therapy: 'Angioplastia com stent', stent: { materialId: 'use-5', diameterMm: 3.5, lengthMm: 23 }, residual: 0, timiPost: '3', treatment: 'Angioplastia primária' }],
         report: { text: 'Acesso radial direito. Coronária direita ocluída no terço proximal, recanalizada com fio-guia, implantado stent farmacológico 3,5 × 23 mm com fluxo final TIMI 3. Demais artérias sem lesões significativas.', conclusion: 'Infarto inferior tratado com angioplastia primária da coronária direita, com sucesso.', signedAt: `${day(-35)}T07:00:00.000Z`, signedBy: 'Dra. Helena Prado · CRM fictício 12345' },
         invoices: [
           { id: 'inv-1', kind: 'Serviço', recipient: 'Convênio B · guia GUIA-000287', items: ['Angioplastia primária no infarto agudo', '1 × Fio-guia coronário 0,014" (lote FG14-2610)', '1 × Stent farmacológico 3,5 × 23 mm (lote SF35-2701 · série SN-FICT-35001)'], createdAt: `${day(-30)}T12:00:00.000Z`, status: 'Simulada' },
