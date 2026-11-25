@@ -55,6 +55,24 @@
 .hemo-findings { display: grid; gap: 8px; justify-items: start; }
 .hemo-finding { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; width: 100%; }
 .hemo-finding label:not(.grow) { width: 100px; }
+/* Laudo estruturado */
+.hemo-findings { justify-items: stretch; }
+.hemo-findings > .text-link { justify-self: start; }
+.hemo-finding-card { position: relative; display: grid; gap: 10px; margin: 0; padding: 12px 14px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); min-width: 0; }
+.hemo-finding-card legend { padding: 0 6px; font-size: 12px; font-weight: 650; }
+.hemo-finding-remove { position: absolute; top: 6px; right: 6px; }
+.hemo-finding-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+.hemo-finding-row > label { min-width: 0; }
+.hemo-finding-row .grow { grid-column: span 2; }
+.hemo-finding-row .hospital-check { padding-bottom: 11px; }
+.hemo-finding-problem { display: flex; gap: 6px; align-items: center; margin: 0; padding: 7px 10px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; }
+.hemo-finding-preview { margin: 0; padding: 7px 10px; border-radius: 8px; background: var(--surface-soft); color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.hemo-complications { display: grid; gap: 10px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.hemo-complications legend { padding: 0 6px; font-size: 12px; font-weight: 650; }
+.hemo-complication-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 14px; }
+@media (max-width: 640px) {
+  .hemo-finding-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .hemo-copilot-inline { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .hemo-review { padding: 12px 14px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; }
 .hemo-review ul { margin: 6px 0 0; padding-left: 18px; }

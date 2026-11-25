@@ -12,6 +12,8 @@ import { askCopilot, copilotStatus, type Answer, type Briefing } from './copilot
 import { type HemoStore } from './useHemo';
 import { onCallFor, renalStages } from './clinical';
 import { BandPanel, ClinicalIndicators, ConsentPanel, DischargePanel, ImagingPanel, MedsPanel, OnCallPanel, RenalLine, RenalRecheckList, RenalRecheckStep, ReplenishmentOrders, UrgencyTimeline } from './ClinicalPanels';
+import { ComplicationsField, FindingEditor, PressuresField, StructuredIndicators } from './ReportPanels';
+import { complicationText, describeFinding, emptyFinding, findingProblem, normalizeFinding, pressureText, structuredReportText } from './report';
 import { dateTime, when, type Props, type Update } from './ui';
 import { availableQuantity, type DemoData } from '../data';
 import '../hospital/hospital.css';
@@ -266,6 +268,7 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
   const lotId = usable.some(s => s.id === chosen) ? chosen : usable[0]?.id ?? '';
   const [intra, setIntra] = useState<Intra>({ ...c.intra, start: c.intra.start || c.intra.roomIn });
   const set = <K extends keyof Intra>(k: K, v: Intra[K]) => setIntra({ ...intra, [k]: v });
+  const patch = (p: Partial<Intra>) => setIntra({ ...intra, ...p });
   const problem = intraProblem(data, c, intra);
   const product = (id: string) => productOf(stock.products, id);
   const chosenProduct = product(usable.find(s => s.id === lotId)?.productId ?? '');
@@ -290,7 +293,9 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
       <label>Kerma no ar (mGy)<input type="number" min={0} value={intra.kermaMgy} onChange={e => set('kermaMgy', Number(e.target.value))}/></label>
     </div>
     {renal.contrastLimitMl !== null && <p className={contrast ? 'hemo-contrast is-over' : 'hemo-contrast'}>{contrast ? <><AlertTriangle size={14}/>{contrast}</> : <>Limite sugerido de contraste: <strong>{renal.contrastLimitMl} mL</strong> (TFG {renal.egfr} × {CONTRAST_EGFR_RATIO.toLocaleString('pt-BR')}). Referência do serviço; a decisão é do médico.</>}</p>}
-    <label>Intercorrências<input value={intra.complications} onChange={e => set('complications', e.target.value)} placeholder="Deixe vazio se não houve"/></label>
+    <h4>Pressões (opcional)</h4>
+    <PressuresField intra={intra} onChange={patch}/>
+    <ComplicationsField intra={intra} onChange={patch}/>
     <MedsPanel update={update} c={c}/>
     <ImagingPanel key={c.imaging.url + c.imaging.accession} update={update} c={c} editable/>
     <div className="head-actions"><button className="button primary" disabled={!!problem} title={problem} onClick={() => update(d => finishProcedure(d, c.id, intra))}><Check size={16}/> Concluir procedimento</button>{problem && <span className="field-hint">{problem}</span>}</div>
@@ -320,7 +325,8 @@ function ReportStep({ data, update, stock, c }: Props & { c: HemoCase }) {
   const [busy, setBusy] = useState(false), [copilotError, setCopilotError] = useState('');
   const [signer, setSigner] = useState(c.schedule?.doctorId ?? data.doctors[0].id);
   const dirty = JSON.stringify([findings, text, conclusion]) !== JSON.stringify([c.findings, c.report.text, c.report.conclusion]);
-  const setFinding = (i: number, patch: Partial<Finding>) => setFindings(findings.map((f, n) => n === i ? { ...f, ...patch } : f));
+  const problems = findings.map(f => findingProblem(normalizeFinding(f), c));
+  const firstProblem = problems.findIndex(Boolean);
   async function draft() {
     setBusy(true); setCopilotError('');
     try {
@@ -329,17 +335,21 @@ function ReportStep({ data, update, stock, c }: Props & { c: HemoCase }) {
     } catch (e) { setCopilotError((e as Error).message); } finally { setBusy(false); }
   }
   return <div className="hemo-step"><h3>Laudo</h3>
-    <h4>Achados por vaso</h4>
-    <div className="hemo-findings">{findings.map((f, i) => <div key={f.id} className="hemo-finding"><label className="grow">Vaso<input value={f.vessel} onChange={e => setFinding(i, { vessel: e.target.value })}/></label><label>Estenose %<input type="number" min={0} max={100} value={f.stenosis} onChange={e => setFinding(i, { stenosis: Number(e.target.value) })}/></label><label className="grow">Tratamento<input value={f.treatment} onChange={e => setFinding(i, { treatment: e.target.value })}/></label><button className="icon-button" aria-label={`Remover achado ${f.vessel || i + 1}`} onClick={() => setFindings(findings.filter((_, n) => n !== i))}><X size={15}/></button></div>)}
-      <button className="text-link" onClick={() => setFindings([...findings, { id: crypto.randomUUID(), vessel: '', stenosis: 0, treatment: '' }])}><Plus size={14}/> Adicionar achado</button></div>
-    <div className="hemo-copilot-inline"><button className="button secondary" disabled={busy} onClick={draft}><Sparkles size={16}/> {busy ? 'Redigindo…' : 'Rascunho do laudo com o copilot'}</button><span className="field-hint">Usa registro da sala, materiais e achados. Você revisa e edita antes de assinar.</span></div>
+    <h4>Achados por segmento</h4>
+    <p className="field-hint">Um achado por lesão. Para vasos fora da árvore coronária (ex.: arteriografia periférica), use "Outro vaso".</p>
+    <div className="hemo-findings">{findings.map((f, i) => <FindingEditor key={f.id} f={f} index={i} c={c} catalog={stock.products} onChange={next => setFindings(findings.map((x, n) => n === i ? next : x))} onRemove={() => setFindings(findings.filter((_, n) => n !== i))}/>)}
+      <button className="text-link" onClick={() => setFindings([...findings, emptyFinding(crypto.randomUUID())])}><Plus size={14}/> Adicionar achado</button></div>
+    <div className="hemo-copilot-inline">
+      <button className="button secondary" disabled={firstProblem >= 0} title={firstProblem >= 0 ? `Corrija o achado ${firstProblem + 1}` : ''} onClick={() => { if (text.trim() && !window.confirm('Substituir a descrição atual pelo texto montado a partir dos achados?')) return; setText(structuredReportText(c, findings, stock.products, typeOf(data, c).name)); setFromCopilot(false); setReview([]); }}><FileText size={16}/> Montar descrição a partir dos achados</button>
+      <button className="button secondary" disabled={busy} onClick={draft}><Sparkles size={16}/> {busy ? 'Redigindo…' : 'Rascunho do laudo com o copilot'}</button>
+      <span className="field-hint">A montagem usa só o que foi registrado, sem IA. O copilot redige em texto corrido. Nos dois casos, você revisa antes de assinar.</span></div>
     {copilotError && <p className="module-error" role="alert">{copilotError}</p>}
     {review.length > 0 && <div className="hemo-review"><strong>O copilot pede para conferir</strong><ul>{review.map(r => <li key={r}>{r}</li>)}</ul></div>}
     <label>Descrição do procedimento{fromCopilot && <span className="hemo-ai-tag"><Bot size={12}/> rascunho do copilot · revisar</span>}<textarea rows={9} value={text} onChange={e => setText(e.target.value)}/></label>
     <label>Conclusão<textarea rows={3} value={conclusion} onChange={e => setConclusion(e.target.value)}/></label>
     <ImagingPanel key={c.imaging.url + c.imaging.accession} update={update} c={c} editable/>
     <div className="head-actions">
-      <button className="button secondary" disabled={!dirty && fromCopilot === c.report.copilotDraft} onClick={() => update(d => saveReport(d, c.id, { findings, text, conclusion, copilotDraft: fromCopilot }))}>Salvar laudo</button>
+      <button className="button secondary" disabled={(!dirty && fromCopilot === c.report.copilotDraft) || firstProblem >= 0} title={firstProblem >= 0 ? `Corrija o achado ${firstProblem + 1}: ${problems[firstProblem]}` : ''} onClick={() => update(d => saveReport(d, c.id, { findings, text, conclusion, copilotDraft: fromCopilot }))}>Salvar laudo</button>
       <label className="hemo-signer">Assina<select value={signer} onChange={e => setSigner(e.target.value)}>{data.doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>
       <button className="button primary" disabled={dirty} title={dirty ? 'Salve o laudo antes de assinar' : ''} onClick={() => { if (window.confirm('Assinar o laudo? Depois de assinado ele não pode ser editado.')) update(d => signReport(d, c.id, signer)); }}><FileText size={16}/> Assinar laudo</button>
     </div>
@@ -349,7 +359,9 @@ function ReportStep({ data, update, stock, c }: Props & { c: HemoCase }) {
 function SignedReport({ data, stock, c }: { data: HemoData; stock: DemoData; c: HemoCase }) {
   const implants = implantsOf(stock.products, c);
   return <details className="hemo-signed" open={c.stage === 'Faturamento'}><summary>Laudo assinado · {c.report.signedBy} · {dateTime(c.report.signedAt)}{c.report.copilotDraft ? ' · partiu de rascunho do copilot' : ''}</summary>
-    <ul>{c.findings.map(f => <li key={f.id}>{f.vessel}: {f.stenosis}%{f.treatment ? ` · ${f.treatment}` : ''}</li>)}</ul>
+    {c.findings.length > 0 && <><strong>Achados</strong><ul>{c.findings.map(f => <li key={f.id}>{describeFinding(f, stock.products, c)}</li>)}</ul></>}
+    {pressureText(c.intra.pressures) && <p><strong>Hemodinâmica:</strong> {pressureText(c.intra.pressures)}.</p>}
+    <p><strong>Intercorrências:</strong> {complicationText(c.intra) || 'nenhuma registrada'}.</p>
     <p className="hemo-report-text">{c.report.text}</p><p><strong>Conclusão:</strong> {c.report.conclusion}</p>
     {implants.length > 0 && <><strong>Implantes</strong><ul>{implants.map(({ used, product }) => <li key={used.id}>{product.name} · {product.anvisaRegistry || 'registro ANVISA não cadastrado'} · lote {used.lot} · série {used.serial || 'não registrada'}</li>)}</ul></>}
     {c.meds.length > 0 && <><strong>Medicamentos na sala</strong><ul>{c.meds.map(m => <li key={m.id}>{m.at.slice(11)} · {m.drug} {m.dose.toLocaleString('pt-BR')} {m.unit} · {m.route.toLocaleLowerCase('pt-BR')}</li>)}</ul></>}
@@ -547,6 +559,7 @@ function Indicators({ data, stock }: Props) {
       {ind.highDosePatients.length > 0 ? <ul className="hemo-alerts">{ind.highDosePatients.map(x => <li key={x.patient.id} className="is-warn"><AlertTriangle size={15}/>{x.patient.name}: {x.kermaMgy.toLocaleString('pt-BR')} mGy acumulados. Avaliar pele.</li>)}</ul> : <p className="empty-state">Nenhum paciente acima de {SKIN_DOSE_FOLLOWUP_MGY.toLocaleString('pt-BR')} mGy acumulados (referência do serviço para avaliação de pele).</p>}
     </section>
     <ClinicalIndicators data={data}/>
+    <StructuredIndicators data={data}/>
   </div>;
 }
 
