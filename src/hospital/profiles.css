@@ -1,0 +1,96 @@
+/* Perfis: pacientes, profissionais e usuários. Lista à esquerda, formulário à direita. */
+.profiles { display: grid; gap: 14px; margin-top: 4px; }
+.profiles * { min-width: 0; }
+
+.profiles-switcher { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.profiles-switcher > button { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 18px 14px 14px; border: 1px solid transparent; border-radius: 18px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 1px 0 rgba(16, 62, 88, .04); transition: border-color .15s, box-shadow .15s; }
+.profiles-switcher > button:hover { border-color: var(--info-line); }
+.profiles-switcher > button:focus-visible { outline: 0; box-shadow: var(--focus); }
+.profiles-switcher > button[aria-pressed="true"] { border-color: var(--brand-800); box-shadow: 0 0 0 3px rgba(37, 130, 166, .12); }
+.profiles-switcher-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: var(--brand-50); color: var(--brand-900); transition: background .15s, color .15s; }
+.profiles-switcher > button[aria-pressed="true"] .profiles-switcher-icon { background: var(--brand-900); color: #fff; }
+.profiles-switcher-copy { display: grid; gap: 2px; }
+.profiles-switcher-copy strong { overflow: hidden; color: var(--ink); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.profiles-switcher-copy small { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; }
+.profiles-count { color: var(--ink); font-size: 22px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.profiles-note { display: flex; align-items: center; gap: 6px; margin: -2px 2px 0; color: var(--subtle); font-size: 12px; }
+
+.profiles-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(380px, 1fr); gap: 20px; align-items: start; }
+.profiles-directory-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 20px 12px; }
+.profiles-directory-head h2, .profiles-editor-head h2 { margin: 0; color: var(--ink); font-size: 17px; }
+.profiles-directory-head p, .profiles-editor-head p { margin: 2px 0 0; color: var(--muted); font-size: 12.5px; }
+.profiles-directory-head .button { flex: none; }
+.profiles-toolbar { padding: 0 20px 14px; }
+.profiles-search { display: flex; align-items: center; gap: 8px; height: var(--control-h); padding: 0 6px 0 12px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-soft); color: var(--subtle); transition: border-color .15s, box-shadow .15s, background .15s; }
+.profiles-search:focus-within { border-color: var(--brand-800); background: var(--surface); box-shadow: var(--focus); color: var(--brand-900); }
+.profiles-search input { flex: 1; height: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 14px; }
+.profiles-search .icon-button { width: 32px; height: 32px; }
+
+.profiles .profile-list { padding: 0 20px 20px; max-height: min(64vh, 720px); overflow-y: auto; }
+.profiles .profile-card { position: relative; grid-template-columns: 54px minmax(0, 1fr) auto; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+.profiles .profile-card:focus-visible { outline: 0; box-shadow: var(--focus); }
+.profiles .profile-card.is-selected { border-color: var(--brand-800); background: var(--brand-50); box-shadow: inset 4px 0 0 var(--brand-800); }
+.profiles .profile-card.is-saved:not(.is-selected) { animation: profile-saved 1.6s ease-out; }
+.profiles .profile-card.is-readonly { cursor: default; }
+.profiles .profile-card.is-readonly:hover { border-color: var(--line); background: #fff; }
+@keyframes profile-saved { 0% { background: var(--ok-bg); border-color: var(--ok-line); } 100% { background: #fff; } }
+.profile-edit-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--subtle); transition: background .15s, color .15s; }
+.profile-card:hover .profile-edit-icon, .profile-card.is-selected .profile-edit-icon { background: #fff; color: var(--brand-900); }
+.profiles-empty { display: grid; justify-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--muted); font-size: 13px; text-align: center; }
+.profiles-empty p { margin: 0; }
+
+.profiles-editor { position: sticky; top: 16px; scroll-margin-top: 16px; }
+.profiles-editor-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 18px 20px 16px; border-bottom: 1px solid var(--line); }
+.profiles-editor-head > div { flex: 1; }
+.profiles-editor-head p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profiles-mode { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--ok-bg); color: var(--ok); }
+.profiles-mode.is-editing { background: var(--info-bg); color: var(--brand-900); }
+.profiles-form { display: grid; gap: 14px; }
+.profiles-form .module-success { margin: 0; }
+.profiles-form .module-note { margin-top: -4px; }
+/* Rótulo em uma linha (com * e "opcional") e campo logo abaixo. */
+.profiles-form > label:not(.hospital-check), .profiles-form .hospital-form-grid > label:not(.hospital-check), .profiles-section > label:not(.hospital-check) { display: block; }
+.profiles-form > label:not(.hospital-check) > :is(input, select), .profiles-form .hospital-form-grid > label:not(.hospital-check) > :is(input, select), .profiles-section > label:not(.hospital-check) > :is(input, select) { display: block; margin-top: 6px; }
+.profiles .hospital-check { display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 500; line-height: 1.5; cursor: pointer; }
+.profiles .module-form .hospital-check input, .profiles .module-form .days-picker input { flex: none; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; accent-color: var(--brand-900); }
+.profiles .module-form .days-picker label { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-weight: 500; cursor: pointer; }
+.field-optional { color: var(--subtle); font-weight: 500; }
+.required-mark { color: var(--brand-red); }
+.profiles-actions { padding-top: 4px; }
+.profiles-section { display: grid; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.profiles-section h3 { margin: 0; color: var(--subtle); font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.profiles-section .days-picker { margin: 0; padding: 0; border: 0; gap: 8px 14px; }
+.profiles-section .days-picker legend { margin-bottom: 8px; padding: 0; color: var(--ink); font-size: 13px; }
+.hospital-form-grid.profiles-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.profiles-photo { display: flex; align-items: center; gap: 16px; }
+.profiles-photo-avatar { position: relative; flex: none; cursor: pointer; border-radius: 50%; }
+.profiles-photo-avatar:focus-within { box-shadow: var(--focus); }
+.profiles-photo-avatar input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.profiles-photo-avatar .profile-avatar { transition: filter .15s; }
+.profiles-photo-avatar:hover .profile-avatar { filter: brightness(.95); }
+.profiles-photo-badge { position: absolute; right: -2px; bottom: 0; display: grid; place-items: center; width: 28px; height: 28px; border: 2px solid #fff; border-radius: 50%; background: var(--brand-900); color: #fff; box-shadow: 0 2px 6px rgba(16, 62, 88, .25); }
+.profiles-photo-copy { display: grid; gap: 3px; justify-items: start; }
+.profiles-photo-copy strong { color: var(--ink); font-size: 13px; }
+.profiles-photo-copy small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.profiles-photo-remove { display: inline-flex; align-items: center; gap: 4px; padding: 0; font-size: 12px; }
+
+.profiles-locked { display: grid; justify-items: start; gap: 10px; padding: 24px; }
+.profiles-locked h2 { margin: 0; color: var(--ink); font-size: 17px; }
+.profiles-locked p { margin: 0; color: var(--text); font-size: 14px; line-height: 1.55; }
+.profiles-locked-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: var(--warn-bg); color: var(--warn); }
+
+@media (max-width: 1099px) {
+  .profiles-layout { grid-template-columns: minmax(0, 1fr); }
+  .profiles-editor { position: static; }
+  .profiles .profile-list { max-height: none; }
+}
+@media (max-width: 640px) {
+  .profiles-switcher { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .profiles-switcher > button { padding: 10px 14px 10px 10px; }
+  .profiles-directory-head { flex-wrap: wrap; }
+  .profiles-directory-head .button { width: 100%; justify-content: center; }
+  .hospital-form-grid.profiles-grid-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .profiles .profile-card { grid-template-columns: 48px minmax(0, 1fr) auto; }
+  .profiles .profile-card .profile-status { grid-column: auto; justify-self: end; }
+}

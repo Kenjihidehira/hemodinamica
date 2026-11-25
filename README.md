@@ -1,10 +1,70 @@
-# Conceito Jusimed — controle de dispositivos médicos
+# Hemodinâmica — protótipo de sistema hospitalar
 
-Protótipo web responsivo de uma proposta para a Jusimed. Demonstra registro de movimentações e visibilidade do estoque por produto, lote, validade e localização. **É um conceito independente e não oficial; não representa um sistema implantado ou aprovado pela Jusimed.** Todos os dados são fictícios.
+Protótipo web responsivo do sistema **Hemodinâmica**. Ele acompanha cada procedimento do pedido médico ao faturamento e reúne agenda, perfis com login e estoque com rastreabilidade por produto, lote, validade e localização. Todos os dados são fictícios e ficam só no navegador.
 
-![Pedidos, reservas e expedição no desktop](docs/pedidos-desktop.png)
+A Hemodinâmica não tem relação com a Jusimed. O módulo de estoque nasceu de um conceito independente e não oficial feito para a Jusimed, e os documentos sobre esse conceito continuam em `docs/` como histórico.
 
-[Prévia de pedidos no celular](docs/pedidos-mobile.png) · [Prévia do dashboard no celular](docs/dashboard-jusimed-mobile.png)
+![Lista de procedimentos da hemodinâmica com a ficha do caso aberta](docs/prints/hemodinamica-procedimentos.png)
+
+## Telas
+
+Prints do protótipo rodando com os dados de demonstração.
+
+### Entrada
+
+No primeiro acesso, o sistema pede para criar o administrador. Depois disso, cada pessoa entra com login ou e-mail e senha e vê só o que o seu perfil permite (administrador, médico ou equipe).
+
+![Tela de entrada com login e senha](docs/prints/login.png)
+
+### Hemodinâmica
+
+**Urgência e porta-balão.** A urgência abre direto na sala, já com o médico de sobreaviso do dia. O quadro por etapas mostra onde o tempo se perdeu, da chegada do paciente até a abertura da artéria.
+
+![Caso de urgência com o porta-balão dividido por etapas](docs/prints/hemodinamica-urgencia.png)
+
+**Na sala.** A equipe registra os medicamentos com dose, via e horário (o sistema não sugere doses). O TCA é registrado com o alvo definido pelo médico, e a ficha avisa quando a medida fica abaixo dele. As imagens da angiografia são vinculadas pelo número de acesso.
+
+![Medicamentos, TCA abaixo do alvo e imagens da angiografia na sala](docs/prints/hemodinamica-sala.png)
+
+**Materiais.** Esta aba reúne:
+
+- o rastreio de lote ou número de série, para recall;
+- o pedido de reposição sugerido por fornecedor;
+- os alertas de validade e de saldo mínimo;
+- a reposição de consignados usados em pacientes.
+
+Os materiais são os mesmos produtos do Estoque.
+
+![Rastreio, pedido de reposição, alertas e consignados](docs/prints/hemodinamica-materiais.png)
+
+**Indicadores.** São calculados só com o que foi registrado, sem estimativas: porta-balão e suas etapas, acesso radial, contraste, radiação por hemodinamicista, eventos em 30 dias, glosas, creatinina de controle, termos assinados e orientações de alta entregues.
+
+![Indicadores da hemodinâmica](docs/prints/hemodinamica-indicadores.png)
+
+### Agenda e atendimento
+
+A agenda mostra a semana de consultas. Um horário só é oferecido se o profissional, o paciente e a sala estiverem livres.
+
+![Agenda semanal de consultas](docs/prints/agenda.png)
+
+### Perfis
+
+Qualquer usuário cadastra pacientes. Só o administrador cadastra médicos e profissionais e gerencia quem tem acesso.
+
+![Cadastro de pacientes, profissionais e usuários](docs/prints/perfis.png)
+
+### Estoque
+
+![Dashboard do estoque com disponibilidade, validade e inventário](docs/prints/dashboard-estoque.png)
+
+![Estoque por lote com a ficha do lote aberta ao lado](docs/prints/estoque-ficha-lote.png)
+
+### No celular
+
+<p>
+  <img src="docs/prints/login-celular.png" width="280" alt="Tela de entrada no celular">
+  <img src="docs/prints/hemodinamica-celular.png" width="280" alt="Procedimentos da hemodinâmica no celular">
+</p>
 
 ## Executar localmente
 
@@ -15,55 +75,126 @@ pnpm install
 pnpm dev
 ```
 
-Abra o endereço exibido no terminal. Para testar a leitura pela câmera em um celular, sirva o protótipo por HTTPS. Em `localhost`, o navegador também pode autorizar a câmera. A leitura manual funciona sem câmera.
+Abra o endereço exibido no terminal e crie o administrador. Não existe senha padrão.
+
+O copilot do médico é opcional. Para ligá-lo, copie `.env.example` para `.env.local`, preencha `ANTHROPIC_API_KEY` e reinicie o `pnpm dev`. Sem a chave, o resto do sistema funciona normalmente.
+
+Para testar a leitura pela câmera em um celular, sirva o protótipo por HTTPS. Em `localhost`, o navegador também pode autorizar a câmera. A leitura manual funciona sem câmera.
 
 ## O que funciona nesta versão
 
-- **Dashboard** empresarial baseado nos padrões do Patrimônio Ops: contexto da base, seis indicadores clicáveis, atenção da gestão, tendência de movimentações e cobertura dos registros.
-- Visão de operação com prioridades e movimentações recentes.
-- Consulta de saldo por produto, lote e localização, com busca.
-- Consulta por código do produto ou lote, digitado, lido pela câmera ou por bipador USB/Bluetooth em modo teclado no campo de leitura.
-- Cadastro e edição de produtos, fabricante, fornecedor, mínimo e posições por lote/local/validade.
-- Importação local de Excel (.xlsx) e CSV com prévia, validação de todas as linhas e bloqueio de duplicidades. Modelo disponível na interface.
-- Saldo físico separado de reservado, bloqueado, quarentena e disponível para saída.
-- Registro de entrada, saída e transferência; transferência permanece em trânsito até confirmação no destino, quando entra em quarentena.
-- Bloqueio de saída acima do disponível ou de lote vencido.
-- Inventário físico com consulta por etiqueta, contagem sem exibir saldo esperado, justificativa de divergência e revisão simulada antes do ajuste.
-- Dashboard com situações do estoque, trânsito e contagens divergentes pendentes, além dos indicadores existentes.
-- Pedidos por hospital, procedimento, data necessária e unidade de origem; reservas por lote, seleção por menor validade e tratamento de falta parcial.
-- Separação com conferência de código, lote e quantidade; expedição completa com baixa de saldo e histórico por pedido. Cancelamento justificado libera as reservas.
-- Indicadores clicáveis de pedidos abertos, reservas incompletas, prazo próximo com pendência e pedidos prontos para expedição.
-- Alertas ilustrativos de validade e saldo mínimo.
-- Exportação CSV da posição de estoque.
-- Persistência local no navegador e opção de restaurar os dados fictícios.
+### Acesso
 
-**Não há** servidor, autenticação real, banco de dados compartilhado, sincronização contínua com planilha/ERP, controle de múltiplas empresas, validação regulatória ou auditoria imutável. O bipador deve operar como teclado; não há integração proprietária. A revisão de inventário é simulada pelo mesmo usuário. O armazenamento local pode ser apagado pelo próprio navegador e não coordena edições simultâneas entre abas ou dispositivos. Não insira dados reais ou pessoais.
+- Login com perfis de administrador, médico e equipe. As senhas são guardadas com PBKDF2.
+- Cada entrada do histórico mostra o usuário que fez a ação. Detalhes em [acesso e permissões](docs/acesso-e-permissoes.md).
+
+### Hemodinâmica
+
+- **Fluxo do procedimento:**
+  - autorização, com pedido de OPME;
+  - agendamento sem conflito de sala, médico ou paciente;
+  - preparo com time-out e consentimento assinado na tela;
+  - sala e recuperação;
+  - laudo assinado pelo hemodinamicista;
+  - faturamento com notas simuladas.
+- **Urgência:** porta-balão por etapas e escala de sobreaviso.
+- **Segurança clínica:**
+  - TFG estimada (CKD-EPI 2021) e limite sugerido de contraste;
+  - creatinina de controle e critério KDIGO para lesão renal;
+  - alertas de alergia a contraste, anticoagulante, metformina e dose de radiação;
+  - cronômetro da pulseira radial;
+  - orientação de alta.
+- **Rastreabilidade e convênio:** implantes com número de série, rastreio de lote ou série, prévia da guia TISS e glosas com recurso.
+- **Depois do procedimento:** acompanhamento de 30 dias e indicadores.
+- **Copilot do médico (IA):** recebe o caso sem o nome e sem o contato do paciente.
+
+Detalhes em [docs/hemodinamica.md](docs/hemodinamica.md).
+
+### Agenda e perfis
+
+- Agenda semanal com tipos de consulta, encaixes e notificações internas.
+- Cadastro de pacientes (dados administrativos, sem prontuário) e de profissionais, com unidades, salas e grade de atendimento.
+
+Detalhes em [agenda e configurações hospitalares](docs/agenda-hospital-local.md).
+
+### Estoque
+
+- **Dashboard:**
+  - contexto da base e seis indicadores clicáveis;
+  - composição do saldo físico: disponível, reservas, bloqueio, quarentena e vencido;
+  - atenção da gestão, tendência de movimentações e cobertura dos registros.
+- **Consulta de saldo:** por produto, lote e localização, com busca e filtro por situação.
+- **Ficha do lote** (`#/estoque/<id>`): painel ao lado da lista, ou em tela cheia abaixo de 1280 px. Mostra validade, local, composição do saldo, situações, movimentações, contagens e alterações da posição.
+- **Leitura de código:** consulta por código do produto ou lote. O código pode ser digitado, lido pela câmera ou lido por bipador USB/Bluetooth em modo teclado.
+- **Cadastro:** produtos, fabricante, fornecedor, mínimo e posições por lote, local e validade. Os produtos podem ser marcados como implantáveis ou consignados.
+- **Importação de Excel (.xlsx) e CSV:** com prévia, validação de todas as linhas e bloqueio de duplicidades. O modelo de planilha está disponível na interface.
+- **Movimentações:**
+  - entrada, saída e transferência;
+  - a transferência fica em trânsito até a confirmação no destino;
+  - a saída é bloqueada acima do disponível ou em lote vencido.
+- **Inventário físico:** a contagem é feita sem mostrar o saldo esperado. Divergências exigem justificativa, e há uma revisão simulada antes do ajuste.
+- **Alertas e exportação:** alertas ilustrativos de validade e saldo mínimo e exportação CSV da posição de estoque.
+
+## Limites
+
+Esta é uma demonstração local:
+
+- **Login:** o login funciona só neste navegador. Não há autenticação em servidor.
+- **Servidor:** não há servidor nem banco de dados compartilhado. A única exceção é a rota local do copilot.
+- **Edições simultâneas:** a base não coordena edições entre abas ou dispositivos, e o próprio navegador pode apagar os dados.
+- **Integrações:** eGestor, SPDATA e Apollo aparecem como não conectadas.
+- **Notas fiscais:** são simuladas.
+- **Fora desta versão:** controle de múltiplas empresas, validação regulatória e auditoria imutável.
+- **Bipador:** deve operar como teclado.
+- **Revisão de inventário:** é feita pelo mesmo usuário.
+
+Não insira dados reais ou pessoais.
 
 ## Verificação
 
 ```powershell
-node --experimental-strip-types --test tests\stock.test.mjs tests\orders.test.mjs
-.\node_modules\.bin\tsc.cmd --noEmit
-.\node_modules\.bin\vite.cmd build
+pnpm test
+pnpm build
 ```
 
-Os testes verificam migração, disponibilidade, limites de saldo, transferência/recebimento, revisão de contagens, duplicidades e importação atômica. `tests/fixtures/estoque-exemplo.xlsx` é um arquivo sintético usado para conferir o leitor Excel. As regras também foram exercitadas pela interface; câmera e bipadores físicos ainda precisam de validação com os equipamentos reais.
+Os testes cobrem as regras de estoque, agenda, hemodinâmica, segurança clínica e acesso. `tests/fixtures/estoque-exemplo.xlsx` é um arquivo sintético usado para conferir o leitor de Excel. A câmera e os bipadores físicos ainda precisam ser validados com os equipamentos reais.
 
 ## Documentação
 
-- [Proposta e apresentação](docs/proposta-apresentacao.md)
+- [Hemodinâmica: fluxo, segurança clínica, copilot e integrações](docs/hemodinamica.md)
+- [Acesso e permissões](docs/acesso-e-permissoes.md)
+- [Agenda e configurações hospitalares](docs/agenda-hospital-local.md)
 - [Definições dos indicadores do Dashboard](docs/analytics.md)
-- [Escopo funcional e regras](docs/escopo-funcional.md)
-- [Guia dos novos módulos e formato de importação](docs/operacao-v2.md)
-- [Pedidos, reservas, separação e expedição](docs/pedidos-expedicao.md)
-- [Descoberta e validação na empresa](docs/validacao-com-cliente.md)
+- [Escopo funcional e regras do estoque](docs/escopo-funcional.md)
+- [Guia dos módulos de estoque e formato de importação](docs/operacao-v2.md)
 - [Arquitetura e evolução para SaaS](docs/arquitetura-evolucao.md)
-- [Direção visual baseada no Patrimônio Ops](docs/direcao-visual.md)
-- [Aplicação da identidade Jusimed](docs/identidade-jusimed.md)
-- [Como o Patrimônio Ops foi usado como referência](docs/referencia-patrimonio-ops.md)
+- [Direção visual](docs/direcao-visual.md)
+
+Histórico do conceito de estoque, mantido como registro:
+
+- [proposta](docs/proposta-apresentacao.md)
+- [validação com cliente](docs/validacao-com-cliente.md)
+- [pedidos e expedição](docs/pedidos-expedicao.md) (módulo retirado desta demonstração)
+- [identidade Jusimed](docs/identidade-jusimed.md)
+- [referência Patrimônio Ops](docs/referencia-patrimonio-ops.md)
 
 ## Estrutura
 
-`src/data.ts` define dados fictícios e migração local. `src/domain.ts` concentra as regras de estoque e contagem. `src/importing.ts` valida CSV/Excel. `src/Catalog.tsx`, `src/StockControls.tsx` e `src/Inventory.tsx` implementam os novos módulos; `src/App.tsx` integra a navegação e `src/Analytics.tsx` o Dashboard. Os arquivos CSS preservam a base empresarial e a proposta de identidade Jusimed, com adaptações mobile em `src/modules.css`.
-
-O fluxo de pedidos fica em `src/OrderWorkspace.tsx`, com regras puras em `src/orderDomain.ts` e apresentação em `src/orders.css`. A base local usa a versão 3, com migração que preserva os saldos existentes.
+- `src/App.tsx`: entrada, navegação e integração das áreas.
+- `src/auth/`: perfis de acesso, senhas e as telas de entrada e de usuários.
+- `src/hemo/`: hemodinâmica.
+  - `domain.ts`: regras do fluxo e parte renal.
+  - `clinical.ts`: segurança clínica.
+  - `HemoWorkspace.tsx` e `ClinicalPanels.tsx`: telas.
+- `src/hospital/`: agenda, perfis e configurações.
+- `server/copilot.ts`: rota `/api/copilot`, servida pelo Vite, que chama a API da Anthropic.
+- **Estoque:**
+  - `src/data.ts`: dados fictícios e migração;
+  - `src/domain.ts`: regras;
+  - `src/importing.ts`: leitura de CSV e Excel;
+  - `src/Catalog.tsx`, `src/StockControls.tsx` e `src/Inventory.tsx`: telas dos módulos;
+  - `src/LotSheet.tsx` com `src/lotTrace.ts`: ficha do lote;
+  - `src/Analytics.tsx`: Dashboard.
+- **Estilos:** tokens em `src/styles.css`, mais um arquivo `.css` por área.
+- `tests/`: testes com o executor nativo do Node.
+- `docs/prints/`: imagens deste README.

@@ -56,6 +56,37 @@ export function moveStock(data: DemoData, stockId: string, type: 'Entrada' | 'Sa
   const movement: Movement = { id: id(), type, productId: stock.productId, lot: stock.lot, quantity, date, actor: 'Operação simulada', ...(type !== 'Entrada' ? { from: stock.location } : {}), ...(type !== 'Saída' ? { to: type === 'Entrada' ? stock.location : destination.trim() } : {}) };
   return audit({ ...data, stock: data.stock.map((s) => s.id === stockId ? { ...s, quantity: s.quantity + (type === 'Entrada' ? quantity : -quantity), revision: s.revision + 1 } : s), movements: [movement, ...data.movements], transfers: type === 'Transferência' ? [{ id: id(), productId: stock.productId, lot: stock.lot, expiresAt: stock.expiresAt, quantity, from: stock.location, to: destination.trim(), date }, ...data.transfers] : data.transfers }, type, `${quantity} un. · lote ${stock.lot}${type === 'Transferência' ? ' · aguardando recebimento em ' + destination.trim() : ''}`, stockId);
 }
+/** Uso em paciente (hemodinâmica): saída do saldo disponível, com a referência do procedimento na movimentação. */
+export function consumeForPatient(data: DemoData, stockId: string, quantity: number, reference: string) {
+  const stock = position(data, stockId);
+  integer(quantity, 'Quantidade', 1);
+  if (daysToExpiry(stock.expiresAt) < 0) throw new Error(`O lote ${stock.lot} está vencido e não pode ser usado.`);
+  if (quantity > availableQuantity(stock)) throw new Error(`O lote ${stock.lot} tem ${availableQuantity(stock)} un. disponíveis. Reservas, bloqueios e quarentena não podem ser usados.`);
+  const movement: Movement = { id: id(), type: 'Saída', productId: stock.productId, lot: stock.lot, quantity, from: stock.location, date: now(), actor: 'Hemodinâmica', reason: `Uso em paciente · ${reference}` };
+  return audit({ ...data, stock: data.stock.map((s) => s.id === stockId ? { ...s, quantity: s.quantity - quantity, revision: s.revision + 1 } : s), movements: [movement, ...data.movements] }, 'Uso em paciente', `${quantity} un. · lote ${stock.lot} · ${reference}`, stockId);
+}
+/** Devolução de material registrado por engano e não aberto: volta para a mesma posição. */
+export function returnFromPatient(data: DemoData, stockId: string, quantity: number, reference: string) {
+  const stock = position(data, stockId);
+  integer(quantity, 'Quantidade', 1);
+  const movement: Movement = { id: id(), type: 'Entrada', productId: stock.productId, lot: stock.lot, quantity, to: stock.location, date: now(), actor: 'Hemodinâmica', reason: `Devolução de material não usado · ${reference}` };
+  return audit({ ...data, stock: data.stock.map((s) => s.id === stockId ? { ...s, quantity: s.quantity + quantity, revision: s.revision + 1 } : s), movements: [movement, ...data.movements] }, 'Devolução de material', `${quantity} un. · lote ${stock.lot} · ${reference}`, stockId);
+}
+/** Reposição de consignado pelo fornecedor: soma na posição do mesmo lote e local ou cria a posição. Devolve também o id da posição. */
+export function receiveConsignment(data: DemoData, input: { productId: string; lot: string; expiresAt: string; location: string; quantity: number }, reference: string): { data: DemoData; stockId: string } {
+  if (!data.products.some((p) => p.id === input.productId)) throw new Error('Produto não cadastrado no estoque.');
+  integer(input.quantity, 'Quantidade', 1);
+  if (!input.lot.trim()) throw new Error('Informe o lote recebido.');
+  if (!validDate(input.expiresAt) || daysToExpiry(input.expiresAt) < 0) throw new Error('Informe uma validade futura.');
+  const sameLot = data.stock.filter((s) => s.productId === input.productId && canonical(s.lot) === canonical(input.lot));
+  if (sameLot.some((s) => s.expiresAt !== input.expiresAt)) throw new Error('Esse lote já existe com outra validade. Confira a etiqueta.');
+  const target = sameLot.find((s) => canonical(s.location) === canonical(input.location));
+  const movement: Movement = { id: id(), type: 'Entrada', productId: input.productId, lot: input.lot.trim(), quantity: input.quantity, to: input.location, date: now(), actor: 'Hemodinâmica', reason: `Reposição de consignado · ${reference}` };
+  const created: Stock | null = target ? null : { id: id(), productId: input.productId, lot: input.lot.trim(), location: input.location, expiresAt: input.expiresAt, quantity: input.quantity, reserved: 0, blocked: 0, quarantined: 0, revision: 0 };
+  const stockId = target?.id ?? created!.id;
+  const stock = target ? data.stock.map((s) => s.id === target.id ? { ...s, quantity: s.quantity + input.quantity, revision: s.revision + 1 } : s) : [...data.stock, created!];
+  return { data: audit({ ...data, stock, movements: [movement, ...data.movements] }, 'Reposição de consignado', `${input.quantity} un. · lote ${input.lot.trim()} · ${reference}`, stockId), stockId };
+}
 export function receiveTransfer(data: DemoData, transferId: string) {
   const transfer = data.transfers.find((t) => t.id === transferId);
   if (!transfer || transfer.receivedAt) throw new Error('Transferência inexistente ou já recebida.');
