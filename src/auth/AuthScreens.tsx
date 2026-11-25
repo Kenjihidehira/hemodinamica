@@ -47,10 +47,10 @@ export function AccessScreen({ auth }: { auth: AuthSession }) {
   const toggle = <button type="button" className="auth-eye" aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showPassword} onClick={() => setShowPassword(v => !v)}>{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>;
   return <main className="auth-page">
     <aside className="auth-brand" aria-label="Sobre o sistema">
-      <div className="auth-brand-top"><img className="auth-brand-logo" src="/brand/jusimed-logo.png" alt="Jusimed — Produtos para Saúde"/><span className="auth-unit"><HeartPulse size={15}/> Serviço de Hemodinâmica</span></div>
+      <div className="auth-brand-top"><span className="auth-wordmark"><img src="/brand/hemodinamica.svg" alt=""/><span><strong>Hemodinâmica</strong><small>Gestão hospitalar integrada</small></span></span><span className="auth-unit"><HeartPulse size={15}/> Cardiologia intervencionista</span></div>
       <div className="auth-brand-body">
-        <h2>Hemodinâmica e cardiologia intervencionista</h2>
-        <p className="auth-brand-lead">Do pedido médico ao faturamento: sala, preparo, procedimento, laudo e materiais rastreados por paciente.</p>
+        <h2>Cada procedimento acompanhado do pedido médico ao faturamento</h2>
+        <p className="auth-brand-lead">Sala, preparo, procedimento, laudo e materiais rastreados por paciente, em um só sistema.</p>
         <EcgStrip/>
         <ul className="auth-highlights">{highlights.map(({ icon: Icon, title, text }) => <li key={title}><span><Icon size={18}/></span><div><strong>{title}</strong><small>{text}</small></div></li>)}</ul>
       </div>
@@ -62,7 +62,7 @@ export function AccessScreen({ auth }: { auth: AuthSession }) {
         {auth.error ? <><h1 id="auth-title">Acesso indisponível</h1><p role="alert" className="auth-alert"><AlertTriangle size={17}/>{auth.error}</p></> : <>
           {setup && <span className="auth-step"><ShieldCheck size={14}/> Configuração inicial</span>}
           <h1 id="auth-title">{setup ? 'Crie o administrador' : 'Entrar'}</h1>
-          <p className="auth-lead">{setup ? 'Nenhum usuário neste navegador ainda. O administrador cadastra a equipe, os médicos e define quem pode fazer o quê.' : 'Use seu login e senha para acessar o sistema.'}</p>
+          <p className="auth-lead">{setup ? 'Nenhum usuário neste navegador ainda. O administrador cadastra a equipe, os médicos e define quem pode fazer o quê.' : 'Use seu login e senha para acessar o sistema Hemodinâmica.'}</p>
           <form className="auth-form" onSubmit={submit}>
             {setup && <Field icon={UserRound} label="Nome completo"><input required maxLength={160} autoComplete="name" placeholder="Como vai aparecer no sistema" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/></Field>}
             <Field icon={User} label="Login"><input required autoFocus maxLength={120} autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="E-mail ou usuário" value={form.login} onChange={e => setForm({ ...form, login: e.target.value })}/></Field>

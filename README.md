@@ -1,6 +1,8 @@
-# Conceito Jusimed — controle de dispositivos médicos
+# Hemodinâmica — protótipo de sistema hospitalar
 
-Protótipo web responsivo de uma proposta para a Jusimed. Demonstra registro de movimentações e visibilidade do estoque por produto, lote, validade e localização. **É um conceito independente e não oficial; não representa um sistema implantado ou aprovado pela Jusimed.** Todos os dados são fictícios.
+Protótipo web responsivo do sistema **Hemodinâmica**: procedimentos do pedido ao faturamento, agenda, perfis com login e estoque com rastreabilidade por produto, lote, validade e localização. Todos os dados são fictícios.
+
+A Hemodinâmica não tem relação com a Jusimed. O módulo de estoque nasceu de um conceito independente e não oficial feito para a Jusimed, e os documentos sobre esse conceito continuam em `docs/` como histórico.
 
 ![Pedidos, reservas e expedição no desktop](docs/pedidos-desktop.png)
 
