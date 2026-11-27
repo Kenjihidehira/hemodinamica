@@ -32,10 +32,10 @@
 .profiles .profile-card.is-selected { border-color: var(--brand-800); background: var(--brand-50); box-shadow: inset 4px 0 0 var(--brand-800); }
 .profiles .profile-card.is-saved:not(.is-selected) { animation: profile-saved 1.6s ease-out; }
 .profiles .profile-card.is-readonly { cursor: default; }
-.profiles .profile-card.is-readonly:hover { border-color: var(--line); background: #fff; }
-@keyframes profile-saved { 0% { background: var(--ok-bg); border-color: var(--ok-line); } 100% { background: #fff; } }
+.profiles .profile-card.is-readonly:hover { border-color: var(--line); background: var(--surface); }
+@keyframes profile-saved { 0% { background: var(--ok-bg); border-color: var(--ok-line); } 100% { background: var(--surface); } }
 .profile-edit-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 6px; color: var(--subtle); transition: background .15s, color .15s; }
-.profile-card:hover .profile-edit-icon, .profile-card.is-selected .profile-edit-icon { background: #fff; color: var(--brand-900); }
+.profile-card:hover .profile-edit-icon, .profile-card.is-selected .profile-edit-icon { background: var(--surface); color: var(--brand-900); }
 .profiles-empty { display: grid; justify-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 13px; text-align: center; }
 .profiles-empty p { margin: 0; }
 

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { confirmIdentity } from '../src/hemo/safety.ts';
 import { makeHemoData, parseHemoData, findCase, savePrep, startProcedure, finishProcedure, saveReport, intraProblem, hemoIndicators, copilotContext, typeOf } from '../src/hemo/domain.ts';
 import { emptyFinding, normalizeFinding, findingProblem, describeFinding, stentSizeFromName, structuredReportText, reportIndicators, pressureText, complicationText } from '../src/hemo/report.ts';
 import { makeDemoData, withHemoCatalog } from '../src/data.ts';
@@ -10,7 +11,7 @@ const catalog = withHemoCatalog(makeDemoData()).products;
 const allPrep = { fasting: true, labs: true, allergy: true, anticoagulant: true, consent: true, venousAccess: true };
 const allTimeout = { identity: true, procedure: true, materials: true, team: true };
 const intra = { roomIn: '', start: '2026-11-24T09:05', balloonAt: '', end: '2026-11-24T09:45', access: 'Radial direita', contrastMl: 80, fluoroMin: 6, kermaMgy: 420, complications: '', events: [], pressures: { aoSystolic: null, aoDiastolic: null, lvedp: null } };
-const inRoom = () => startProcedure(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', now);
+const inRoom = () => startProcedure(confirmIdentity(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', { code: 'PAC-HP-2' }, now), 'case-1', now);
 const finding = patch => ({ ...emptyFinding('x'), segment: 'Descendente anterior média', vessel: 'Descendente anterior média', stenosis: 80, ...patch });
 const noMaterials = { materials: [] };
 

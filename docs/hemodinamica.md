@@ -266,6 +266,73 @@ As regras ficam em `src/hemo/clinical.ts`, e a parte renal em `src/hemo/domain.t
 
 Cada entrada do histórico mostra o usuário logado que fez a ação. Veja [acesso-e-permissoes.md](acesso-e-permissoes.md).
 
+## Segurança do paciente na sala
+
+O código fica em `src/hemo/safety.ts` e as telas em `src/hemo/SafetyPanels.tsx`.
+
+- **Pulseira de identificação.** Cada paciente tem um código no formato `PAC-<prontuário>`, impresso em Code 39 numa pulseira que a ficha gera para imprimir.
+  - No time-out, a equipe lê a pulseira com bipador, câmera ou digitação.
+  - Se a pulseira for de outro paciente, aparece **PARE** com os dois nomes, e nada é registrado.
+  - Quando a leitura não for possível (pulseira danificada, paciente sem pulseira no pronto-socorro), a conferência manual exige uma justificativa, que fica no histórico.
+  - Sem identificação registrada, o paciente não entra em sala, nem na urgência.
+- **Material bipado na sala.** A equipe lê a etiqueta (lote ou código do produto) antes de usar o material. O sistema confere:
+  - validade e lote vencido;
+  - bloqueio, quarentena e saldo;
+  - se o material é da hemodinâmica;
+  - no convênio, se o OPME foi autorizado na guia ou se o autorizado já foi usado.
+
+  O que impede o uso aparece como "Não use". Se o material estiver liberado, o lote já fica selecionado para registrar.
+- **Contador de contraste.** Na sala há botões de −10, +10, +20 e +50 mL e uma barra que compara o total com o limite sugerido pela função renal. A barra fica âmbar a partir de 80% do limite e vermelha acima dele. O total vai para o campo de contraste do registro.
+- **Reconciliação de medicamentos na alta.**
+  - Parte dos remédios de uso contínuo do paciente, e cada um precisa de uma decisão: manter, suspender (com data ou condição para retomar), alterar dose ou nova prescrição.
+  - O sistema aponta o que costuma pedir atenção: metformina após contraste, anticoagulantes, antiagregante em paciente com stent e hipoglicemiantes. Não sugere dose nem prazo.
+  - O resultado entra na orientação de alta.
+  - Liberar uma alta no mesmo dia sem reconciliação pede confirmação.
+
+## Fluxo da equipe
+
+O código fica em `src/hemo/team.ts` e as telas em `src/hemo/TeamPanels.tsx`.
+
+- **Minhas tarefas.** Cada perfil vê o que é dele, e cada tarefa abre o caso.
+  - A equipe de atendimento vê preparos incompletos, pacientes na recuperação (com pulseira, passagem, reconciliação e alta pendentes) e contatos de 30 dias vencidos.
+  - O médico vê laudos para assinar, pacientes em sala e alertas de função renal.
+  - O administrador vê tudo isso, mais autorizações, guias a regularizar, contas para fechar e glosas abertas.
+- **Avisos de tempo.** Uma faixa no topo da Hemodinâmica, recalculada a cada 30 segundos, avisa quando:
+  - falta 15 minutos ou menos para soltar a pulseira radial, ou o horário já passou;
+  - um laudo está sem assinatura há mais de 24 horas desde a liberação da recuperação;
+  - o porta-balão chega a 30 minutos da meta ou passa dela.
+
+  Há a opção de avisar também pelo navegador. Essa notificação pode aparecer na tela bloqueada, por isso mostra só as iniciais.
+- **Painel para TV.** Fica em **Salas do dia** → "Painel para TV" e abre `#/painel-sala` em tela cheia, para a sala de espera e a recuperação.
+  - Mostra só as iniciais, a sala e a situação (em preparo, em procedimento, em recuperação, liberado). Nome e procedimento não aparecem.
+  - Atualiza quando outra aba grava.
+  - Exige login no aparelho da TV.
+- **Modo plantão noturno.** O seletor da barra de contexto alterna entre Automático (escuro das 19 h às 7 h), Escuro e Claro. No tema escuro, um botão fixo de **Urgência** fica sempre visível na Hemodinâmica.
+
+## Gestão
+
+O código fica em `src/hemo/insights.ts`.
+
+- **Relatório mensal em PDF.** Em **Indicadores**, escolha o mês e clique em "Gerar PDF", depois em "Salvar como PDF" na janela de impressão. O relatório traz:
+  - volume por procedimento;
+  - ocupação das salas;
+  - porta-balão;
+  - intercorrências por tipo;
+  - acesso radial e contraste médio;
+  - cancelamentos por motivo;
+  - glosas;
+  - custo de materiais.
+
+  Custos sem valor na tabela aparecem como faltantes e não são estimados.
+- **Qualidade por hemodinamicista.** Para cada médico, mostra intercorrências, acesso radial, contraste, fluoroscopia, kerma e porta-balão, ao lado da média do serviço.
+  - Só administradores veem (permissão `qualidade.ver`).
+  - Com menos de 10 casos, o médico aparece marcado com "poucos casos".
+- **Previsão de compra.** Em **Materiais**, para os próximos 7, 14 ou 30 dias, a previsão soma:
+  - o OPME pedido na autorização dos casos agendados;
+  - a média de uso do mesmo procedimento no histórico.
+
+  A sugestão de compra é o previsto mais o mínimo menos o disponível. A tela avisa quais procedimentos não têm histórico e quantos pedidos ainda estão sem data. É uma estimativa e dá para copiar o texto.
+
 ## Materiais: um só estoque
 
 Os materiais da hemodinâmica são produtos do **Estoque do hospital**, na especialidade "Hemodinâmica", com lotes no local "Hemodinâmica · Armário de materiais". Aparecem em Estoque, Alertas, Dashboard, Inventário e Leitura de código como qualquer outro produto.

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { confirmIdentity } from '../src/hemo/safety.ts';
 import {
   makeHemoData, parseHemoData, findCase, savePrep, startProcedure, finishProcedure, startEmergency, doorToBalloon, safetyAlerts, copilotContext, billingItems,
   egfr, renalProfile, contrastWarning, recordRenalRecheck, pendingRenalRechecks,
@@ -17,11 +18,11 @@ const catalog = () => withHemoCatalog(makeDemoData()).products;
 const allPrep = { fasting: true, labs: true, allergy: true, anticoagulant: true, consent: true, venousAccess: true };
 const allTimeout = { identity: true, procedure: true, materials: true, team: true };
 const intra = { roomIn: '', start: '2026-11-24T09:05', balloonAt: '', end: '2026-11-24T09:45', access: 'Radial direita', contrastMl: 80, fluoroMin: 6, kermaMgy: 420, complications: '' };
-const inRoom = () => startProcedure(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', now);
+const inRoom = () => startProcedure(confirmIdentity(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', { code: 'PAC-HP-2' }, now), 'case-1', now);
 const signature = `data:image/png;base64,${'A'.repeat(3000)}`;
 
 test('autoria: entradas novas do histórico levam o usuário logado; as antigas não mudam', () => {
-  const first = stampAudit(base(), savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'Ana Admin');
+  const first = stampAudit(base(), confirmIdentity(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', { code: 'PAC-HP-2' }, now), 'Ana Admin');
   assert.equal(first.audit[0].by, 'Ana Admin');
   const second = stampAudit(first, startProcedure(first, 'case-1', now), 'Dr. Paulo');
   assert.deepEqual(second.audit.slice(0, 2).map(a => a.by), ['Dr. Paulo', 'Ana Admin']);
@@ -84,7 +85,7 @@ test('urgência por etapas: ECG na abertura, horários em ordem e soma igual ao 
   assert.throws(() => saveUrgencyTimes(data, id, { ecgAt: '2026-11-24T08:26', teamCalledAt: '2026-11-24T08:30', teamArrivedAt: '2026-11-24T09:00' }, at), /futuro/);
   assert.throws(() => saveUrgencyTimes(data, 'case-1', { ecgAt: '', teamCalledAt: '', teamArrivedAt: '' }, at), /Só urgências/);
   data = saveUrgencyTimes(data, id, { ecgAt: '2026-11-24T08:26', teamCalledAt: '2026-11-24T08:30', teamArrivedAt: '2026-11-24T08:45' }, at);
-  data = startProcedure(savePrep(data, id, findCase(data, id).prep, allTimeout, '', at), id, at);
+  data = startProcedure(confirmIdentity(savePrep(data, id, findCase(data, id).prep, allTimeout, '', at), id, { code: `PAC-${findCase(data, id).patientId.toUpperCase()}` }, at), id, at);
   data = finishProcedure(data, id, { ...intra, start: '2026-11-24T08:55', balloonAt: '2026-11-24T09:20', end: '2026-11-24T09:50', contrastMl: 150 }, at);
   const steps = urgencyTimeline(findCase(data, id));
   assert.deepEqual(steps.map(s => s.minutes), [6, 4, 15, 10, 25]);
