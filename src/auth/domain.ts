@@ -14,12 +14,14 @@ export const permissions = {
   'pacientes.editar': ['admin', 'medico', 'equipe'],
   'profissionais.editar': ['admin'],
   'usuarios.gerenciar': ['admin'],
+  'valores.editar': ['admin'],
 } as const satisfies Record<string, readonly Role[]>;
 export type Permission = keyof typeof permissions;
 const deniedMessage: Record<Permission, string> = {
   'pacientes.editar': 'Entre no sistema para cadastrar pacientes.',
   'profissionais.editar': 'Somente administradores podem criar ou alterar perfis de médicos e profissionais.',
   'usuarios.gerenciar': 'Somente administradores podem criar ou alterar usuários.',
+  'valores.editar': 'Somente administradores podem alterar a tabela de custos e valores.',
 };
 export function can(user: Pick<User, 'role' | 'active'> | null | undefined, permission: Permission) {
   return !!user && user.active && (permissions[permission] as readonly Role[]).includes(user.role);

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bot, Check, Copy, FileText, Plug, Plus, RotateCcw, Search, Siren, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, Bot, Check, ChevronLeft, Columns3, Copy, FileText, List, Plug, Plus, RotateCcw, Search, Siren, Sparkles, X } from 'lucide-react';
 import {
   accessRoutes, addMinutes, ageAt, allGlosas, appealGlosa, billingItems, cancelCase, closeBilling, consumeMaterial, copilotContext, decideAuthorization, destinations, displacedBy, doorToBalloon,
   DOOR_TO_BALLOON_TARGET_MIN, doseAlerts, finishProcedure, finishRecovery, flowStages, followUpOutcomes, freeStarts, hemoIndicators, hemoMaterials, implantsOf, intraProblem, isOpme, localStamp,
   materialAlerts, minutesOf, occupancy, opmeGaps, patientOf, pendingFollowUps, pendingRenalRechecks, pendingReplenishment, prepItems, contrastWarning, renalProfile, CONTRAST_EGFR_RATIO, prepMessage, prepMissing, productOf, receiveReplenishment, recordFollowUp,
   registerGlosa, regularizeAuthorization, requestCase, resolveGlosa, returnMaterial, safetyAlerts, saveOpme, saveReport, savePrep, scheduleCase, signReport, SKIN_DOSE_FOLLOWUP_MGY, startEmergency,
-  startProcedure, timeoutItems, tissPreview, traceLot, typeOf, usableLots,
+  startProcedure, timeoutItems, tissPreview, traceLot, typeOf, usableLots, cancelCategories, blockOverlapping, type CancelCategory,
   type Finding, type FollowUpOutcome, type Glosa, type HemoCase, type HemoData, type Intra, type PrepChecks, type Recovery, type Stage, type TimeoutChecks, type WithStock,
 } from './domain';
 import { askCopilot, copilotStatus, type Answer, type Briefing } from './copilot';
@@ -13,15 +13,27 @@ import { type HemoStore } from './useHemo';
 import { onCallFor, renalStages } from './clinical';
 import { BandPanel, ClinicalIndicators, ConsentPanel, DischargePanel, ImagingPanel, MedsPanel, OnCallPanel, RenalLine, RenalRecheckList, RenalRecheckStep, ReplenishmentOrders, UrgencyTimeline } from './ClinicalPanels';
 import { ComplicationsField, FindingEditor, PressuresField, StructuredIndicators } from './ReportPanels';
+import { CaseCostLine, Operations, type Actor } from './OperationsPanel';
+import { CareSummary, DayBlocks, HandoffPanel, RoomBlocksPanel, SedationPanel, VitalsPanel } from './CarePanels';
+import { needsHandoff } from './care';
 import { complicationText, describeFinding, emptyFinding, findingProblem, normalizeFinding, pressureText, structuredReportText } from './report';
 import { dateTime, when, type Props, type Update } from './ui';
 import { availableQuantity, type DemoData } from '../data';
 import '../hospital/hospital.css';
 import './hemo.css';
-const stageTone: Partial<Record<Stage, string>> = { Autorização: 'status-waiting', Encerrado: 'status-done', Cancelado: 'status-cancelled' };
+/** Cor fixa por etapa (mesma na lista, no quadro e na ficha), como nos painéis de status de sala. */
+const stageKey: Record<Stage, string> = { Autorização: 'auth', Agendamento: 'sched', Preparo: 'prep', Sala: 'room', Recuperação: 'recov', Laudo: 'report', Faturamento: 'bill', Encerrado: 'done', Cancelado: 'cancel' };
+function StageBadge({ stage }: { stage: Stage }) { return <span className={`stage-badge stage-${stageKey[stage]}`}>{stage}</span>; }
+/** Tempo na etapa atual quando há relógio correndo: em sala desde a entrada, na recuperação desde o fim do procedimento. */
+function stageClock(c: HemoCase, now: string) {
+  const since = c.stage === 'Sala' ? c.intra.roomIn : c.stage === 'Recuperação' ? c.intra.end : '';
+  if (!since) return '';
+  const min = Math.max(0, minutesOf(now) - minutesOf(since));
+  return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
+}
 
-export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }: { store: HemoStore; stock: DemoData; onStockChange: (next: DemoData) => void; onOpenLot: (stockId: string) => void }) {
-  const [tab, setTab] = useState<'cases' | 'rooms' | 'materials' | 'claims' | 'followup' | 'indicators' | 'invoices' | 'integrations'>('cases');
+export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot, user }: { store: HemoStore; stock: DemoData; onStockChange: (next: DemoData) => void; onOpenLot: (stockId: string) => void; user: Actor }) {
+  const [tab, setTab] = useState<'cases' | 'rooms' | 'materials' | 'claims' | 'followup' | 'indicators' | 'management' | 'invoices' | 'integrations'>('cases');
   const { data, update, error } = store;
   if (!data) return <section className="panel module-form"><h2>Hemodinâmica indisponível</h2><p role="alert">{error}</p><button className="button secondary" onClick={() => { if (window.confirm('Apagar os dados salvos da hemodinâmica e voltar à demonstração?')) store.reset(); }}>Restaurar demonstração</button></section>;
   function commitBoth(change: (hemo: HemoData, stock: DemoData) => WithStock) {
@@ -34,17 +46,18 @@ export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }
   const pending = pendingReplenishment(data, stock.products).length, alerts = materialAlerts(stock).length;
   const openGlosas = allGlosas(data).filter(x => x.g.status === 'Aberta').length, overdue = pendingFollowUps(data).filter(x => x.days < 0).length + pendingRenalRechecks(data).filter(x => x.days < 0).length;
   const n = (count: number) => count ? ` (${count})` : '';
-  const tabs = [['cases', 'Procedimentos'], ['rooms', 'Salas do dia'], ['materials', `Materiais${n(alerts + pending)}`], ['claims', `Convênios e glosas${n(openGlosas)}`], ['followup', `Acompanhamento${n(overdue)}`], ['indicators', 'Indicadores'], ['invoices', 'Notas fiscais'], ['integrations', 'Integrações']] as const;
+  const tabs = [['cases', 'Procedimentos'], ['rooms', 'Salas do dia'], ['materials', `Materiais${n(alerts + pending)}`], ['claims', `Convênios e glosas${n(openGlosas)}`], ['followup', `Acompanhamento${n(overdue)}`], ['indicators', 'Indicadores'], ['management', 'Ocupação e custos'], ['invoices', 'Notas fiscais'], ['integrations', 'Integrações']] as const;
   return <div className="hospital-workspace hemo-workspace module-stack">
-    <div className="hospital-local-note"><strong>Hemodinâmica · ambiente de demonstração</strong><span>Pacientes fictícios, dados só neste navegador. Notas fiscais e integrações são simuladas.</span><button type="button" className="text-link" onClick={() => { if (window.confirm('Restaurar os procedimentos e materiais de demonstração? O que foi feito neste navegador será apagado.')) store.reset(); }}><RotateCcw size={13}/> Restaurar demonstração</button></div>
+    <div className="hospital-local-note"><strong>Demonstração</strong><span>Pacientes fictícios, dados só neste navegador. Notas fiscais e integrações simuladas.</span><button type="button" className="text-link" onClick={() => { if (window.confirm('Restaurar os procedimentos e materiais de demonstração? O que foi feito neste navegador será apagado.')) store.reset(); }}><RotateCcw size={13}/> Restaurar demonstração</button></div>
     {error && <div className="module-error" role="alert">{error}<button type="button" className="message-close" aria-label="Fechar aviso" onClick={store.clearError}><X size={16}/></button></div>}
-    <div className="module-tabs hospital-tabs" role="group" aria-label="Hemodinâmica">{tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={() => { setTab(id); store.clearError(); }}>{label}</button>)}</div>
+    <div className="module-tabs hospital-tabs" role="group" aria-label="Hemodinâmica">{tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={e => { setTab(id); store.clearError(); revealTab(e.currentTarget); }}>{label}</button>)}</div>
     {tab === 'cases' && <Cases {...ctx}/>}
-    {tab === 'rooms' && <><Rooms data={data}/><OnCallPanel data={data} update={update}/></>}
+    {tab === 'rooms' && <><Rooms data={data}/><RoomBlocksPanel data={data} update={update}/><OnCallPanel data={data} update={update}/></>}
     {tab === 'materials' && <Materials {...ctx}/>}
     {tab === 'claims' && <Claims {...ctx}/>}
     {tab === 'followup' && <FollowUps {...ctx}/>}
     {tab === 'indicators' && <Indicators {...ctx}/>}
+    {tab === 'management' && <Operations {...ctx} user={user}/>}
     {tab === 'invoices' && <Invoices data={data}/>}
     {tab === 'integrations' && <Integrations/>}
   </div>;
@@ -54,31 +67,89 @@ export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot }
 function Cases(ctx: Props) {
   const { data } = ctx;
   const [filter, setFilter] = useState<Stage | 'Em andamento' | 'Todos'>('Em andamento');
-  const [selectedId, setSelectedId] = useState(data.cases.find(c => c.stage === 'Laudo')?.id ?? data.cases[0]?.id ?? '');
+  /** Em telas estreitas lista e ficha se alternam (mestre-detalhe); por isso nada abre selecionado. */
+  const [selectedId, setSelectedId] = useState(narrowLayout() ? '' : data.cases.find(c => c.stage === 'Laudo')?.id ?? data.cases[0]?.id ?? '');
   const [creating, setCreating] = useState<'' | 'elective' | 'emergency'>('');
+  const [query, setQuery] = useState('');
   const active = (c: HemoCase) => !['Encerrado', 'Cancelado'].includes(c.stage);
-  const list = data.cases.filter(c => filter === 'Todos' || (filter === 'Em andamento' ? active(c) : c.stage === filter));
+  const term = query.trim().toLocaleLowerCase('pt-BR');
+  const list = data.cases.filter(c => filter === 'Todos' || (filter === 'Em andamento' ? active(c) : c.stage === filter))
+    .filter(c => !term || `${patientOf(data, c).name} ${typeOf(data, c).name} ${c.authorization.guide}`.toLocaleLowerCase('pt-BR').includes(term));
+  function select(id: string) { setSelectedId(id); setCreating(''); if (narrowLayout()) window.scrollTo({ top: 0 }); }
+  function back() { setSelectedId(''); setCreating(''); }
+  /** Setas ↑/↓ percorrem a lista e já abrem o caso, como nas listas de pacientes dos prontuários. */
+  function listKeys(e: React.KeyboardEvent<HTMLElement>) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    const rows = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('.appointment-row')];
+    const at = rows.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next = rows[Math.min(rows.length - 1, Math.max(0, at + (e.key === 'ArrowDown' ? 1 : -1)))];
+    next.focus(); next.click();
+  }
   const selected = data.cases.find(c => c.id === selectedId);
   const count = (s: Stage) => data.cases.filter(c => c.stage === s).length;
+  const [view, setView] = useState<'list' | 'board'>(() => { try { return localStorage.getItem('hemo-cases-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } });
+  const now = useNow();
+  function changeView(next: 'list' | 'board') { setView(next); try { localStorage.setItem('hemo-cases-view', next); } catch { /* preferência só desta sessão */ } }
+  function open(id: string) { select(id); changeView('list'); }
+  const actions = <div className="head-actions"><button className="button hemo-urgent" onClick={() => { setCreating('emergency'); setSelectedId(''); changeView('list'); }}><Siren size={16}/> Urgência</button><button className="button primary" onClick={() => { setCreating('elective'); setSelectedId(''); changeView('list'); }}><Plus size={16}/> Novo pedido</button></div>;
+  const detailOpen = !!(selected || creating);
   return <>
-    <div className="hemo-pipeline" role="group" aria-label="Procedimentos por etapa">
-      {(['Em andamento', ...flowStages, 'Cancelado', 'Todos'] as const).map(s => { const n = s === 'Todos' ? data.cases.length : s === 'Em andamento' ? data.cases.filter(active).length : count(s); return <button key={s} type="button" aria-pressed={filter === s} onClick={() => setFilter(s)}><span>{s}</span><strong>{n}</strong></button>; })}
+    <div className="hemo-cases-bar">
+      {view === 'list' ? <div className="hemo-pipeline" role="group" aria-label="Procedimentos por etapa">
+        {(['Em andamento', ...flowStages, 'Cancelado', 'Todos'] as const).map(s => { const n = s === 'Todos' ? data.cases.length : s === 'Em andamento' ? data.cases.filter(active).length : count(s); return <button key={s} type="button" aria-pressed={filter === s} onClick={e => { setFilter(s); revealTab(e.currentTarget); if (narrowLayout()) back(); }}><span>{s}</span><strong>{n}</strong></button>; })}
+      </div> : <p className="hemo-board-note">Casos em andamento por etapa. Selecione um cartão para abrir a ficha.</p>}
+      <div className="hemo-view-toggle" role="group" aria-label="Forma de exibição"><button type="button" aria-pressed={view === 'list'} onClick={() => changeView('list')}><List size={15}/> Lista</button><button type="button" aria-pressed={view === 'board'} onClick={() => changeView('board')}><Columns3 size={15}/> Quadro</button></div>
     </div>
-    <div className={`hemo-layout ${selected || creating ? 'with-detail' : ''}`}>
-      <section className="panel hemo-list">
-        <div className="panel-head"><div><h2>Procedimentos</h2><p>{list.length} {list.length === 1 ? 'caso' : 'casos'}</p></div><div className="head-actions"><button className="button hemo-urgent" onClick={() => { setCreating('emergency'); setSelectedId(''); }}><Siren size={16}/> Urgência</button><button className="button primary" onClick={() => { setCreating('elective'); setSelectedId(''); }}><Plus size={16}/> Novo pedido</button></div></div>
-        {list.length === 0 && <p className="empty-state">Nenhum procedimento nesta etapa.</p>}
-        {list.map(c => { const p = patientOf(data, c); return <button key={c.id} type="button" className={`appointment-row ${c.id === selectedId ? 'is-selected' : ''}`} onClick={() => { setSelectedId(c.id); setCreating(''); }}>
+    {view === 'board' ? <CaseBoard data={data} now={now} onOpen={open} actions={actions}/> :
+    <div className={`hemo-layout ${detailOpen ? 'with-detail' : ''}`}>
+      <section className="panel hemo-list" onKeyDown={listKeys}>
+        <div className="panel-head"><div><h2>Procedimentos</h2><p aria-live="polite">{list.length} {list.length === 1 ? 'caso' : 'casos'}</p></div>{actions}</div>
+        <label className="hemo-list-search"><Search size={15} aria-hidden="true"/><span className="sr-only">Buscar procedimento</span><input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Paciente, procedimento ou guia"/>{query && <button type="button" className="icon-button" aria-label="Limpar busca" onClick={() => setQuery('')}><X size={14}/></button>}</label>
+        {list.length === 0 && <p className="empty-state">{term ? 'Nenhum caso encontrado para essa busca.' : 'Nenhum procedimento nesta etapa.'}</p>}
+        {list.map(c => { const p = patientOf(data, c), clock = stageClock(c, now); return <button key={c.id} type="button" className={`appointment-row ${c.id === selectedId ? 'is-selected' : ''} ${c.priority === 'Urgência' ? 'is-urgent' : ''}`} aria-current={c.id === selectedId ? 'true' : undefined} onClick={() => select(c.id)}>
           <span className="appointment-time">{c.schedule ? c.schedule.start.slice(11, 16) : '—'}<small>{c.schedule ? when(c.schedule.start).slice(0, 5) : 'sem data'}</small></span>
           <span className="appointment-person"><strong>{p.name}</strong><small>{typeOf(data, c).name}</small>{c.priority === 'Urgência' && <span className="hemo-urgent-tag">urgência</span>}</span>
-          <span className={`appointment-status ${stageTone[c.stage] ?? 'status-scheduled'}`}>{c.stage}</span>
+          <span className="appointment-stage"><StageBadge stage={c.stage}/>{clock && <small className="stage-clock">há {clock}</small>}</span>
         </button>; })}
       </section>
+      {detailOpen && <button type="button" className="hemo-back" onClick={back}><ChevronLeft size={17}/> Procedimentos</button>}
       {creating === 'elective' && <NewCase {...ctx} onDone={id => { setCreating(''); if (id) { setSelectedId(id); setFilter('Em andamento'); } }}/>}
       {creating === 'emergency' && <NewEmergency {...ctx} onDone={id => { setCreating(''); if (id) { setSelectedId(id); setFilter('Em andamento'); } }}/>}
       {selected && !creating && <CaseSheet key={selected.id} {...ctx} c={selected}/>}
-    </div>
+    </div>}
   </>;
+}
+
+/** Mesmo corte do CSS (hemo.css, 1100 px): abaixo dele lista e ficha não cabem lado a lado. */
+const narrowLayout = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches;
+/** Mantém a aba ou o filtro escolhido visível quando a faixa rola na horizontal (celular). */
+function revealTab(el: HTMLElement) { el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); }
+
+/** Hora local atualizada a cada 30 s, para os relógios de etapa. */
+function useNow() {
+  const [now, setNow] = useState(localStamp);
+  useEffect(() => { const id = window.setInterval(() => setNow(localStamp()), 30000); return () => window.clearInterval(id); }, []);
+  return now;
+}
+
+/** Quadro de status (estilo painel de sala): uma coluna por etapa ativa, cartões compactos com sala, horário e tempo na etapa. */
+function CaseBoard({ data, now, onOpen, actions }: { data: HemoData; now: string; onOpen: (id: string) => void; actions: React.ReactNode }) {
+  const columns: Stage[] = flowStages.filter(s => s !== 'Encerrado');
+  return <section className="panel hemo-board-panel">
+    <div className="panel-head"><div><h2>Quadro de procedimentos</h2><p>{data.cases.filter(c => columns.includes(c.stage)).length} em andamento</p></div>{actions}</div>
+    <div className="hemo-board">{columns.map(stage => { const items = data.cases.filter(c => c.stage === stage).sort((a, b) => (a.priority === 'Urgência' ? -1 : 0) - (b.priority === 'Urgência' ? -1 : 0) || (a.schedule?.start ?? '9').localeCompare(b.schedule?.start ?? '9')); return <div key={stage} className={`hemo-board-col stage-${stageKey[stage]} ${items.length ? '' : 'is-empty'}`}>
+      <h3><span>{stage}</span><strong>{items.length}</strong></h3>
+      {items.length === 0 && <p className="hemo-board-empty">—</p>}
+      {items.map(c => { const p = patientOf(data, c), clock = stageClock(c, now), room = c.schedule ? data.rooms.find(r => r.id === c.schedule!.roomId)?.name.split(' · ')[0] : ''; return <button key={c.id} type="button" className={`hemo-card ${c.priority === 'Urgência' ? 'is-urgent' : ''}`} onClick={() => onOpen(c.id)}>
+        <span className="hemo-card-top"><span className="mono">{c.schedule ? `${when(c.schedule.start).slice(0, 5)} ${c.schedule.start.slice(11, 16)}` : 'sem data'}</span>{room && <span>{room}</span>}</span>
+        <strong>{p.name}</strong>
+        <small>{typeOf(data, c).name}</small>
+        {(c.priority === 'Urgência' || clock || p.allergies.length > 0) && <span className="hemo-card-flags">{c.priority === 'Urgência' && <span className="hemo-urgent-tag">urgência</span>}{p.allergies.length > 0 && <span className="hemo-card-allergy" title={p.allergies.join('; ')}><AlertTriangle size={11}/> alergia</span>}{clock && <span className="stage-clock">há {clock}</span>}</span>}
+      </button>; })}
+    </div>; })}</div>
+  </section>;
 }
 
 function NewCase({ data, update, onDone }: Props & { onDone: (id?: string) => void }) {
@@ -137,20 +208,41 @@ function DoorToBalloon({ c }: { c: HemoCase }) {
   return <div className={`hemo-dtb ${late ? 'is-late' : ''}`}><Siren size={16}/><span>Chegada {when(c.doorAt)} · {dtb !== null ? <>porta-balão <strong>{dtb} min</strong></> : live ? <>decorrido <strong>{elapsed} min</strong> desde a chegada</> : 'sem horário de abertura da artéria'} · meta até {DOOR_TO_BALLOON_TARGET_MIN} min</span></div>;
 }
 
+/** Faixa de identificação do paciente, como nos prontuários eletrônicos: campos rotulados e alergia sempre visível. */
+function PatientBanner({ p, c }: { p: ReturnType<typeof patientOf>; c: HemoCase }) {
+  const [y, m, d] = p.birthDate.split('-');
+  const fields: [string, string, boolean?][] = [
+    ['Nasc.', `${d}/${m}/${y} (${ageAt(p.birthDate)} a)`],
+    ['Sexo', p.sex === 'F' ? 'Feminino' : 'Masculino'],
+    ['Prontuário', p.id.toUpperCase(), true],
+    ['Convênio', p.insurance],
+    ...(c.authorization.guide ? [['Guia', c.authorization.guide, true] as [string, string, boolean]] : []),
+    ...(p.weightKg ? [['Peso', `${p.weightKg} kg`] as [string, string]] : []),
+  ];
+  return <header className={`hemo-banner ${c.priority === 'Urgência' ? 'is-urgent' : ''}`}>
+    <div className="hemo-banner-top">
+      <h2>{p.name.toLocaleUpperCase('pt-BR')}</h2>
+      {c.priority === 'Urgência' && <span className="hemo-flag is-urgent">Urgência</span>}
+      <StageBadge stage={c.stage}/>
+    </div>
+    <dl>{fields.map(([k, v, mono]) => <div key={k}><dt>{k}</dt><dd className={mono ? 'mono' : undefined}>{v}</dd></div>)}</dl>
+    <p className={`hemo-flag ${p.allergies.length ? 'is-allergy' : 'is-clear'}`}>{p.allergies.length ? <><AlertTriangle size={13}/> Alergia: {p.allergies.join('; ')}</> : 'Sem alergias registradas'}</p>
+  </header>;
+}
+
 function CaseSheet(props: Props & { c: HemoCase }) {
   const { data, update, stock, c } = props;
   const p = patientOf(data, c), t = typeOf(data, c), alerts = [...safetyAlerts(data, c), ...(c.intra.end ? doseAlerts(data, c).alerts : [])];
   const displaced = displacedBy(data, c);
   const history = data.audit.filter(a => a.caseId === c.id);
-  const [cancelling, setCancelling] = useState(false), [reason, setReason] = useState('');
+  const [cancelling, setCancelling] = useState(false), [reason, setReason] = useState(''), [cancelCategory, setCancelCategory] = useState<CancelCategory | ''>('');
   const doneIndex = flowStages.indexOf(c.stage);
   return <section className="panel hemo-sheet" aria-label={`Procedimento de ${p.name}`}>
-    <div className="panel-head"><div><h2>{p.name}</h2><p>{ageAt(p.birthDate)} anos · {p.sex === 'F' ? 'feminino' : 'masculino'} · {p.insurance}{c.authorization.guide ? ` · guia ${c.authorization.guide}` : ''}</p></div><span className={`appointment-status ${stageTone[c.stage] ?? 'status-scheduled'}`}>{c.stage}</span></div>
+    <PatientBanner p={p} c={c}/>
     <p className="hemo-procedure"><strong>{t.name}</strong> · {c.priority}{c.schedule ? ` · ${when(c.schedule.start)} · ${data.rooms.find(r => r.id === c.schedule!.roomId)?.name} · ${data.doctors.find(d => d.id === c.schedule!.doctorId)?.name}` : ''}<br/><small>{c.indication} Solicitado por {c.requestedBy}.</small></p>
     {c.stage !== 'Cancelado' && <ol className="hemo-stepper" aria-label="Etapas do procedimento">{flowStages.map((s, i) => <li key={s} title={s} className={i < doneIndex ? 'is-done' : i === doneIndex ? 'is-current' : ''} aria-current={i === doneIndex ? 'step' : undefined}>{s}</li>)}</ol>}
 
     <div className="hemo-clinical">
-      <div><small>Alergias</small><span>{p.allergies.join('; ') || 'Nenhuma registrada'}</span></div>
       <div><small>Comorbidades</small><span>{p.conditions.join('; ') || '—'}</span></div>
       <div><small>Medicamentos</small><span>{p.medications.join('; ') || '—'}</span></div>
       <div><small>Creatinina · TFG · peso</small><RenalLine data={data} c={c}/></div>
@@ -177,13 +269,13 @@ function CaseSheet(props: Props & { c: HemoCase }) {
       {c.stage === 'Encerrado' && <InvoiceList data={data} cases={[c]}/>}
       {c.stage === 'Encerrado' && c.claim.sentAt && <GlosaPanel {...props}/>}
       {['Laudo', 'Faturamento', 'Encerrado'].includes(c.stage) && c.followUp.due && <FollowUpStep {...props}/>}
-      {c.stage === 'Cancelado' && <p className="module-error">Cancelado: {c.cancelReason}</p>}
+      {c.stage === 'Cancelado' && <p className="module-error">Cancelado{c.cancelCategory ? ` · ${c.cancelCategory}` : ''}: {c.cancelReason}</p>}
     </div>
 
     {!['Encerrado', 'Cancelado', 'Faturamento'].includes(c.stage) && <CopilotPanel data={data} stock={stock} c={c}/>}
 
     {['Autorização', 'Agendamento', 'Preparo'].includes(c.stage) && (cancelling
-      ? <div className="hemo-inline-form"><label>Motivo do cancelamento<input value={reason} onChange={e => setReason(e.target.value)}/></label><button className="button secondary" onClick={() => { if (update(d => cancelCase(d, c.id, reason))) setCancelling(false); }}>Confirmar cancelamento</button><button className="text-link" onClick={() => setCancelling(false)}>Voltar</button></div>
+      ? <div className="hemo-inline-form"><label>Motivo<select value={cancelCategory} onChange={e => setCancelCategory(e.target.value as CancelCategory | '')}><option value="">Selecione</option>{cancelCategories.map(x => <option key={x}>{x}</option>)}</select></label><label className="grow">Detalhe<input value={reason} onChange={e => setReason(e.target.value)} placeholder="O que aconteceu"/></label><button className="button secondary" disabled={!cancelCategory || !reason.trim()} title={!cancelCategory ? 'Escolha o motivo' : !reason.trim() ? 'Descreva o que aconteceu' : ''} onClick={() => { if (cancelCategory && update(d => cancelCase(d, c.id, reason, new Date(), cancelCategory))) setCancelling(false); }}>Confirmar cancelamento</button><button className="text-link" onClick={() => setCancelling(false)}>Voltar</button></div>
       : <button className="text-link hemo-cancel" onClick={() => setCancelling(true)}>Cancelar procedimento</button>)}
 
     <details className="hemo-history"><summary>Histórico ({history.length})</summary><ol className="appointment-history">{history.map(h => <li key={h.id}><small>{dateTime(h.at)} · {h.action}{h.by ? <> · <strong>{h.by}</strong></> : ''}</small><p>{h.detail}</p></li>)}</ol></details>
@@ -297,6 +389,8 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
     <PressuresField intra={intra} onChange={patch}/>
     <ComplicationsField intra={intra} onChange={patch}/>
     <MedsPanel update={update} c={c}/>
+    <SedationPanel key={JSON.stringify(c.sedation)} update={update} c={c}/>
+    <VitalsPanel update={update} c={c}/>
     <ImagingPanel key={c.imaging.url + c.imaging.accession} update={update} c={c} editable/>
     <div className="head-actions"><button className="button primary" disabled={!!problem} title={problem} onClick={() => update(d => finishProcedure(d, c.id, intra))}><Check size={16}/> Concluir procedimento</button>{problem && <span className="field-hint">{problem}</span>}</div>
   </div>;
@@ -305,7 +399,7 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
 function RecoveryStep({ data, update, stock, c }: Props & { c: HemoCase }) {
   const [r, setR] = useState<Recovery>(c.recovery);
   function release() {
-    const pending = [c.band.placedAt && !c.band.removedAt && 'a pulseira radial ainda não foi retirada', r.destination === 'Alta no mesmo dia' && !c.discharge.deliveredAt && 'a orientação de alta não foi entregue'].filter(Boolean);
+    const pending = [c.band.placedAt && !c.band.removedAt && 'a pulseira radial ainda não foi retirada', r.destination === 'Alta no mesmo dia' && !c.discharge.deliveredAt && 'a orientação de alta não foi entregue', needsHandoff(r.destination) && !c.handoff.at && `a passagem de plantão para ${r.destination === 'UTI' ? 'a UTI' : 'a internação'} não foi registrada`].filter(Boolean);
     if (pending.length && !window.confirm(`Atenção: ${pending.join(' e ')}. Liberar mesmo assim?`)) return;
     update(d => finishRecovery(d, c.id, r));
   }
@@ -314,6 +408,9 @@ function RecoveryStep({ data, update, stock, c }: Props & { c: HemoCase }) {
     <div className="hospital-form-grid"><label>Hemostasia<input value={r.hemostasis} onChange={e => setR({ ...r, hemostasis: e.target.value })} placeholder="Ex.: pulseira de compressão radial por 2 h"/></label><label>Destino<select value={r.destination} onChange={e => setR({ ...r, destination: e.target.value as Recovery['destination'] })}><option value="">Selecione</option>{destinations.map(d => <option key={d}>{d}</option>)}</select></label></div>
     <label className="hospital-check"><input type="checkbox" checked={r.stable} onChange={e => setR({ ...r, stable: e.target.checked })}/>Sinais vitais estáveis e sítio de punção sem sangramento</label>
     <label>Observações<input value={r.notes} onChange={e => setR({ ...r, notes: e.target.value })}/></label>
+    <SedationPanel key={JSON.stringify(c.sedation)} update={update} c={c}/>
+    <VitalsPanel update={update} c={c}/>
+    <HandoffPanel key={`${c.handoff.at}|${r.destination}`} data={data} update={update} stock={stock} c={{ ...c, recovery: { ...c.recovery, ...r } }} destination={r.destination}/>
     <DischargePanel key={c.discharge.deliveredAt} data={data} update={update} stock={stock} c={c}/>
     <div className="head-actions"><button className="button primary" onClick={release}><Check size={16}/> Liberar para laudo</button></div>
   </div>;
@@ -362,6 +459,8 @@ function SignedReport({ data, stock, c }: { data: HemoData; stock: DemoData; c: 
     {c.findings.length > 0 && <><strong>Achados</strong><ul>{c.findings.map(f => <li key={f.id}>{describeFinding(f, stock.products, c)}</li>)}</ul></>}
     {pressureText(c.intra.pressures) && <p><strong>Hemodinâmica:</strong> {pressureText(c.intra.pressures)}.</p>}
     <p><strong>Intercorrências:</strong> {complicationText(c.intra) || 'nenhuma registrada'}.</p>
+    <CareSummary c={c}/>
+    {c.handoff.at && <p><strong>Passagem de plantão:</strong> {c.handoff.unit}, recebido por {c.handoff.receivedBy} em {dateTime(c.handoff.at)}.</p>}
     <p className="hemo-report-text">{c.report.text}</p><p><strong>Conclusão:</strong> {c.report.conclusion}</p>
     {implants.length > 0 && <><strong>Implantes</strong><ul>{implants.map(({ used, product }) => <li key={used.id}>{product.name} · {product.anvisaRegistry || 'registro ANVISA não cadastrado'} · lote {used.lot} · série {used.serial || 'não registrada'}</li>)}</ul></>}
     {c.meds.length > 0 && <><strong>Medicamentos na sala</strong><ul>{c.meds.map(m => <li key={m.id}>{m.at.slice(11)} · {m.drug} {m.dose.toLocaleString('pt-BR')} {m.unit} · {m.route.toLocaleLowerCase('pt-BR')}</li>)}</ul></>}
@@ -378,6 +477,7 @@ function BillingStep({ data, update, stock, c }: Props & { c: HemoCase }) {
   return <div className="hemo-step"><h3>Faturamento</h3>
     <p className="field-hint">Conta do procedimento com os materiais rastreados. Ao fechar, o sistema prepara a nota de serviço e uma nota de reposição por fornecedor de consignado. Nesta demonstração as notas são simuladas: nada é emitido nem enviado.</p>
     <ul className="hemo-used">{billingItems(data, stock.products, c).map(i => <li key={i}><span>{i}</span></li>)}</ul>
+    <CaseCostLine data={data} stock={stock} c={c}/>
     {consigned.length > 0 && <p className="field-hint">{consigned.length} item(ns) consignado(s): a reposição aparece em Materiais.</p>}
     {gaps.length > 0 && <ul className="hemo-alerts">{gaps.map(g => <li key={g.product.id} className="is-high"><AlertTriangle size={15}/>{g.product.name}: usado {g.used}, autorizado {g.authorized}. Sem complemento de autorização, este item tende a ser glosado.</li>)}</ul>}
     <div className="head-actions"><button className="button primary" disabled={c.authorization.status === 'Regularizar'} title={c.authorization.status === 'Regularizar' ? 'Regularize a guia do convênio primeiro' : ''} onClick={() => update(d => closeBilling(d, stock.products, c.id))}><Check size={16}/> Fechar conta e gerar notas</button></div>
@@ -471,7 +571,7 @@ function Rooms({ data }: { data: HemoData }) {
   const [day, setDay] = useState(localStamp().slice(0, 10));
   const scheduled = data.cases.filter(c => c.schedule && c.schedule.start.startsWith(day) && c.stage !== 'Cancelado').sort((a, b) => a.schedule!.start.localeCompare(b.schedule!.start));
   return <section className="panel"><div className="panel-head toolbar"><div><h2>Ocupação das salas</h2><p>Procedimento + preparo da sala. Um horário só é oferecido se sala, médico e paciente estiverem livres.</p></div><label className="hemo-day">Dia<input type="date" value={day} onChange={e => setDay(e.target.value)}/></label></div>
-    <div className="hemo-rooms">{data.rooms.map(r => { const items = scheduled.filter(c => c.schedule!.roomId === r.id); return <div key={r.id} className="hemo-room"><h3>{r.name}</h3>{items.length === 0 && <p className="field-hint">Sala livre neste dia.</p>}{items.map(c => { const o = occupancy(data, c, c.schedule!.start); return <div key={c.id} className="hemo-room-slot"><span className="appointment-time">{o.start.slice(11)}<small>até {o.end.slice(11)} · livre {o.freeAt.slice(11)}</small></span><span className="appointment-person"><strong>{patientOf(data, c).name}</strong><small>{typeOf(data, c).name} · {data.doctors.find(d => d.id === c.schedule!.doctorId)?.name}</small></span><span className={`appointment-status ${stageTone[c.stage] ?? 'status-scheduled'}`}>{c.stage}</span></div>; })}</div>; })}</div>
+    <div className="hemo-rooms">{data.rooms.map(r => { const items = scheduled.filter(c => c.schedule!.roomId === r.id); return <div key={r.id} className="hemo-room"><h3>{r.name}</h3><DayBlocks data={data} roomId={r.id} day={day}/>{items.length === 0 && !data.roomBlocks.some(b => b.roomId === r.id && b.start < `${day}T23:59` && `${day}T00:00` < b.end) && <p className="field-hint">Sala livre neste dia.</p>}{items.map(c => { const o = occupancy(data, c, c.schedule!.start); const clash = ['Agendamento', 'Preparo'].includes(c.stage) ? blockOverlapping(data, r.id, o.start, o.freeAt) : undefined; return <div key={c.id} className={`hemo-room-slot${clash ? ' is-conflict' : ''}`}><span className="appointment-time">{o.start.slice(11)}<small>até {o.end.slice(11)} · livre {o.freeAt.slice(11)}</small></span><span className="appointment-person"><strong>{patientOf(data, c).name}</strong><small>{typeOf(data, c).name} · {data.doctors.find(d => d.id === c.schedule!.doctorId)?.name}</small>{clash && <small className="hemo-conflict">Sala bloqueada ({clash.reason.toLocaleLowerCase('pt-BR')}): remarcar</small>}</span><StageBadge stage={c.stage}/></div>; })}</div>; })}</div>
   </section>;
 }
 

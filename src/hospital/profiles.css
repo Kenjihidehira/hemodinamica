@@ -3,11 +3,11 @@
 .profiles * { min-width: 0; }
 
 .profiles-switcher { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.profiles-switcher > button { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 18px 14px 14px; border: 1px solid transparent; border-radius: 18px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 1px 0 rgba(16, 62, 88, .04); transition: border-color .15s, box-shadow .15s; }
+.profiles-switcher > button { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 14px 18px 14px 14px; border: 1px solid transparent; border-radius: 8px; background: var(--surface); color: var(--text); text-align: left; box-shadow: 0 1px 0 rgba(16, 62, 88, .04); transition: border-color .15s, box-shadow .15s; }
 .profiles-switcher > button:hover { border-color: var(--info-line); }
 .profiles-switcher > button:focus-visible { outline: 0; box-shadow: var(--focus); }
 .profiles-switcher > button[aria-pressed="true"] { border-color: var(--brand-800); box-shadow: 0 0 0 3px rgba(37, 130, 166, .12); }
-.profiles-switcher-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: var(--brand-50); color: var(--brand-900); transition: background .15s, color .15s; }
+.profiles-switcher-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; background: var(--brand-50); color: var(--brand-900); transition: background .15s, color .15s; }
 .profiles-switcher > button[aria-pressed="true"] .profiles-switcher-icon { background: var(--brand-900); color: #fff; }
 .profiles-switcher-copy { display: grid; gap: 2px; }
 .profiles-switcher-copy strong { overflow: hidden; color: var(--ink); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
@@ -34,16 +34,16 @@
 .profiles .profile-card.is-readonly { cursor: default; }
 .profiles .profile-card.is-readonly:hover { border-color: var(--line); background: #fff; }
 @keyframes profile-saved { 0% { background: var(--ok-bg); border-color: var(--ok-line); } 100% { background: #fff; } }
-.profile-edit-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--subtle); transition: background .15s, color .15s; }
+.profile-edit-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 6px; color: var(--subtle); transition: background .15s, color .15s; }
 .profile-card:hover .profile-edit-icon, .profile-card.is-selected .profile-edit-icon { background: #fff; color: var(--brand-900); }
-.profiles-empty { display: grid; justify-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--muted); font-size: 13px; text-align: center; }
+.profiles-empty { display: grid; justify-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 13px; text-align: center; }
 .profiles-empty p { margin: 0; }
 
 .profiles-editor { position: sticky; top: 16px; scroll-margin-top: 16px; }
 .profiles-editor-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding: 18px 20px 16px; border-bottom: 1px solid var(--line); }
 .profiles-editor-head > div { flex: 1; }
 .profiles-editor-head p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.profiles-mode { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: var(--ok-bg); color: var(--ok); }
+.profiles-mode { display: grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 6px; background: var(--ok-bg); color: var(--ok); }
 .profiles-mode.is-editing { background: var(--info-bg); color: var(--brand-900); }
 .profiles-form { display: grid; gap: 14px; }
 .profiles-form .module-success { margin: 0; }
@@ -78,7 +78,7 @@
 .profiles-locked { display: grid; justify-items: start; gap: 10px; padding: 24px; }
 .profiles-locked h2 { margin: 0; color: var(--ink); font-size: 17px; }
 .profiles-locked p { margin: 0; color: var(--text); font-size: 14px; line-height: 1.55; }
-.profiles-locked-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: var(--warn-bg); color: var(--warn); }
+.profiles-locked-icon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
 
 @media (max-width: 1099px) {
   .profiles-layout { grid-template-columns: minmax(0, 1fr); }
