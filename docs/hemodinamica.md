@@ -14,7 +14,7 @@
 | Laudo | Achados por segmento coronário (ver [Laudo estruturado](#laudo-estruturado)), descrição e conclusão. Só o hemodinamicista do procedimento assina; depois de assinado não muda. |
 | Faturamento | Fecha a conta e prepara a nota de serviço e uma nota de reposição por fornecedor de consignado. **Notas simuladas: nada é emitido.** |
 
-Cancelamento com motivo é possível até o preparo. Cada ação fica no histórico do caso.
+Cancelamento é possível até o preparo, com motivo da lista e detalhe em texto (ver [Ocupação e custos](#ocupação-e-custos)). Cada ação fica no histórico do caso.
 
 Alertas automáticos (sem IA): alergia a contraste, creatinina ≥ 1,5 mg/dL ou ausente com contraste, anticoagulante, metformina e dose de radiação (abaixo).
 
@@ -68,6 +68,95 @@ Campos que não fazem sentido para a conduta escolhida são limpos ao salvar. Ex
 - **Lesões significativas e tratadas por artéria:** ≥ 50% no tronco e ≥ 70% nas demais (`SIGNIFICANT_STENOSIS`).
 
 Laudos salvos antes desta versão continuam abrindo. Os achados antigos, sem segmento, ficam fora das contas por artéria.
+
+## Sinais vitais, sedação e passagem de plantão
+
+As regras ficam em `src/hemo/care.ts`.
+
+### Sinais vitais
+
+- Na sala e na recuperação, cada medida é registrada com horário: PA, FC, SpO₂, FR e ritmo.
+- Cada campo é opcional, mas a medida precisa de pelo menos um. PAS e PAD vão juntas.
+- Valores fora de uma faixa plausível são recusados, porque quase certamente são erro de digitação.
+- Medidas fora da faixa de referência do serviço ficam destacadas: PAS de 90 a 180, FC de 50 a 120, SpO₂ de 92% ou mais e FR de 10 a 24 (`VITAL_REFERENCE`). O destaque não indica conduta.
+
+### Sedação
+
+Registra o nível (sem sedação, mínima, moderada, profunda ou anestesia geral) e quem conduziu. Os sedativos e as doses ficam em Medicamentos na sala.
+
+### Passagem de plantão
+
+- Na recuperação, o sistema monta um resumo para a equipe da unidade de destino, no formato situação, história, procedimento, avaliação na saída e o que vigiar.
+- O resumo usa só o que foi registrado:
+  - alergias;
+  - função renal;
+  - achados;
+  - implantes com série;
+  - medicamentos;
+  - último TCA;
+  - sedação;
+  - intercorrências;
+  - últimos sinais vitais;
+  - pulseira radial com o horário de liberar;
+  - creatinina de controle;
+  - medidas fora da faixa de referência.
+- O texto pode ser editado, copiado e impresso.
+- Ao registrar, é obrigatório informar quem recebeu o paciente.
+- Para Internação e UTI, liberar o paciente sem passagem registrada pede confirmação.
+
+## Bloqueio de sala
+
+- Em **Salas do dia → Bloqueios de sala** registra-se a manutenção do angiógrafo, uma calibração ou uma limpeza terminal, com sala, início, fim, motivo e observação.
+- No período bloqueado:
+  - a sala não aparece nos horários da agenda;
+  - a urgência não abre nela;
+  - a agenda do dia mostra a faixa bloqueada.
+- Ao criar o bloqueio, o sistema lista os eletivos já marcados que precisam ser remarcados.
+- O bloqueio pode ser cancelado, se ainda não começou, ou encerrado na hora ("Liberar sala agora"). O tempo parado até ali continua contado.
+- Em **Ocupação e custos**, o tempo bloqueado aparece como "Parada" e sai do tempo disponível no cálculo de uso.
+
+## Ocupação e custos
+
+A aba **Ocupação e custos** mostra o que foi registrado nos procedimentos, nos últimos 7, 30 ou 90 dias. As regras ficam em `src/hemo/operations.ts`.
+
+### Ocupação das salas
+
+- **Uso das salas:** tempo de sala (da entrada do paciente ao fim do procedimento) dividido pelas horas da janela de funcionamento.
+  - A janela é de 7h às 19h, todos os dias, a mesma da agenda (`ROOM_WINDOW`).
+  - O que acontece fora dela, como urgências à noite, aparece à parte e não entra no percentual.
+- **Eletivos no horário:** entrada em sala comparada com o horário agendado. A tolerância é de 15 min (`LATE_TOLERANCE_MIN`). Urgências não entram, porque não têm horário marcado.
+- **Intervalo entre casos:** do fim de um procedimento até a entrada do seguinte, na mesma sala e no mesmo dia. É comparado com o preparo de sala previsto no tipo do procedimento.
+
+### Cancelamentos
+
+- O motivo é escolhido de uma lista:
+  - paciente não compareceu;
+  - paciente desistiu;
+  - preparo incompleto;
+  - condição clínica;
+  - autorização negada;
+  - falta de material;
+  - equipamento indisponível;
+  - sala ocupada por urgência;
+  - outro.
+- Além do motivo, é preciso escrever o detalhe.
+- A negativa do convênio entra sozinha como "Autorização negada".
+- A taxa considera cancelados ÷ (cancelados + realizados) no período.
+- Cancelamentos antigos, sem motivo da lista, aparecem como "Sem motivo classificado".
+
+### Custo por procedimento
+
+- **Tabela de custos e valores:** custo unitário de cada material da hemodinâmica e valor de referência de cada tipo de procedimento.
+  - Começa vazia: o sistema não presume nenhum valor.
+  - Aceita "1.234,56", "18.500" e "R$ 80".
+  - Só administradores alteram. A permissão `valores.editar` é conferida também ao gravar, e cada alteração fica no histórico com o autor.
+- **Custo de materiais do caso:** quantidade usada × custo unitário.
+- **Margem sobre materiais:** valor de referência menos o custo de materiais.
+  - Só é calculada quando todos os materiais do caso têm custo e o procedimento tem valor. Senão, a tela diz o que falta.
+  - Não entram medicamentos, honorários, taxas de sala nem glosas.
+- **Onde aparece:** por tipo de procedimento (médias só com casos completos), caso a caso, e na etapa de Faturamento de cada procedimento.
+
+O valor de referência é um por tipo de procedimento. Valores diferentes por convênio dependem de como o hospital organiza os contratos.
 
 ## OPME e autorização
 

@@ -62,6 +62,19 @@ const opmeItemSchema = z.object({ id: z.string(), productId: z.string(), request
 export const glosaStatuses = ['Aberta', 'Em recurso', 'Revertida', 'Aceita'] as const;
 const glosaSchema = z.object({ id: z.string(), item: text.min(1, 'Informe o item glosado.'), reason: text.min(1, 'Informe o motivo da glosa.'), at: z.string(), status: z.enum(glosaStatuses), appeal: z.string().default(''), appealFromCopilot: z.boolean().default(false), resolvedAt: z.string().default('') });
 export const followUpOutcomes = ['Sem eventos', 'Evento adverso', 'Reinternação', 'Óbito', 'Sem contato'] as const;
+/** Motivos de cancelamento em lista fechada: mostram onde a agenda perde horários. */
+export const cancelCategories = ['Paciente não compareceu', 'Paciente desistiu', 'Preparo incompleto', 'Condição clínica do paciente', 'Autorização negada', 'Falta de material', 'Equipamento indisponível', 'Sala ocupada por urgência', 'Outro'] as const;
+export type CancelCategory = typeof cancelCategories[number];
+/**
+ * Tabela de valores do serviço, em centavos: custo unitário de cada material (por produto do Estoque)
+ * e valor de referência de cada tipo de procedimento. Começa vazia: nenhum valor é presumido.
+ */
+const emptyValues = { materials: {}, procedures: {}, updatedAt: '', updatedBy: '' };
+const valuesSchema = z.object({
+  materials: z.record(z.string(), z.number().int().nonnegative()).default({}),
+  procedures: z.record(z.string(), z.number().int().nonnegative()).default({}),
+  updatedAt: z.string().default(''), updatedBy: z.string().default(''),
+}).default(emptyValues);
 
 export const prepItems = { fasting: 'Jejum confirmado', labs: 'Exames revisados (função renal e coagulação)', allergy: 'Alergia a contraste avaliada', anticoagulant: 'Conduta com anticoagulantes definida', consent: 'Termo de consentimento assinado', venousAccess: 'Acesso venoso puncionado' } as const;
 export const timeoutItems = { identity: 'Paciente identificado em voz alta', procedure: 'Procedimento e via de acesso confirmados', materials: 'Materiais e equipamentos conferidos', team: 'Equipe apresentada e ciente' } as const;
@@ -75,6 +88,18 @@ export const medRoutes = ['Intravenosa', 'Intra-arterial', 'Intracoronária', 'S
 const medSchema = z.object({ id: z.string(), at: stamp, drug: text.min(1, 'Informe o medicamento.').max(120), dose: z.number().positive('Informe a dose.'), unit: z.enum(medUnits), route: z.enum(medRoutes) });
 /** Tempo de coagulação ativado (TCA) na sala. target = alvo definido pelo médico (0 = não definido). */
 const actSchema = z.object({ target: z.number().int().min(0).max(999).default(0), readings: z.array(z.object({ id: z.string(), at: stamp, seconds: z.number().int().min(50, 'TCA entre 50 e 999 segundos.').max(999, 'TCA entre 50 e 999 segundos.') })).default([]) });
+/** Sinais vitais com horário, na sala e na recuperação. Cada campo é opcional, mas a medida precisa de pelo menos um. */
+export const vitalPhases = ['Sala', 'Recuperação'] as const;
+export const rhythms = ['Sinusal', 'Fibrilação atrial', 'Ritmo de marcapasso', 'Outro'] as const;
+const vitalNumber = z.number().nullable().default(null);
+const vitalSchema = z.object({ id: z.string(), at: stamp, phase: z.enum(vitalPhases), sbp: vitalNumber, dbp: vitalNumber, hr: vitalNumber, spo2: vitalNumber, rr: vitalNumber, rhythm: z.union([z.enum(rhythms), z.literal('')]).default('') });
+/** Nível de sedação (contínuo de sedação usual: mínima, moderada, profunda, anestesia geral). */
+export const sedationLevels = ['Sem sedação', 'Sedação mínima (ansiólise)', 'Sedação moderada', 'Sedação profunda', 'Anestesia geral'] as const;
+const emptySedation = { level: '' as const, responsible: '', notes: '' };
+const emptyHandoff = { text: '', unit: '', receivedBy: '', at: '' };
+/** Bloqueio de sala (manutenção do angiógrafo etc.): a sala sai da agenda no período. */
+export const blockReasons = ['Manutenção preventiva', 'Manutenção corretiva', 'Calibração ou teste de qualidade', 'Limpeza terminal', 'Outro'] as const;
+const roomBlockSchema = z.object({ id: z.string(), roomId: z.string(), start: stamp, end: stamp, reason: z.enum(blockReasons), notes: text.default(''), createdAt: z.string() });
 const emptyRenal = { baselineEgfr: null, contrastLimitMl: null, recheckDue: '', recheckCreatinine: null, recheckAt: '', aki: false };
 const emptyDischarge = { text: '', medications: '', returnDate: '', deliveredAt: '', by: '' };
 const emptyConsent = { signedAt: '', signer: '', relation: 'Paciente' as const, signature: '' };
@@ -106,6 +131,9 @@ const caseSchema = z.object({
   /** Contato de 30 dias após o procedimento. */
   followUp: z.object({ due: z.string().default(''), doneAt: z.string().default(''), outcome: z.union([z.enum(followUpOutcomes), z.literal('')]).default(''), notes: text.default('') }).default({ due: '', doneAt: '', outcome: '', notes: '' }),
   cancelReason: text.default(''),
+  /** Motivo do cancelamento em lista fechada (para os indicadores) e quando foi cancelado (ISO). */
+  cancelCategory: z.union([z.enum(cancelCategories), z.literal('')]).default(''),
+  cancelledAt: z.string().default(''),
   /** Urgência por etapas: ECG, acionamento da equipe de sobreaviso e chegada dela. Punção = intra.start. */
   urgency: z.object({ ecgAt: optionalStamp, teamCalledAt: optionalStamp, teamArrivedAt: optionalStamp }).default({ ecgAt: '', teamCalledAt: '', teamArrivedAt: '' }),
   meds: z.array(medSchema).default([]),
@@ -119,6 +147,10 @@ const caseSchema = z.object({
   consent: z.object({ signedAt: z.string().default(''), signer: z.string().default(''), relation: z.enum(['Paciente', 'Responsável legal']).default('Paciente'), signature: z.string().max(400_000).default('') }).default(emptyConsent),
   /** Exame no sistema de imagens (PACS): número de acesso e link para abrir as imagens. */
   imaging: z.object({ accession: text.max(64).default(''), url: z.string().max(500).default('') }).default({ accession: '', url: '' }),
+  vitals: z.array(vitalSchema).default([]),
+  sedation: z.object({ level: z.union([z.enum(sedationLevels), z.literal('')]).default(''), responsible: text.default(''), notes: text.default('') }).default(emptySedation),
+  /** Passagem de plantão para a unidade de destino: texto estruturado, quem recebeu e quando (ISO). */
+  handoff: z.object({ text: z.string().default(''), unit: z.string().default(''), receivedBy: text.default(''), at: z.string().default('') }).default(emptyHandoff),
 });
 /** by = usuário logado que fez a ação (preenchido ao gravar; vazio em registros antigos). */
 const auditSchema = z.object({ id: z.string(), at: z.string(), caseId: z.string().default(''), action: z.string(), detail: z.string(), by: z.string().default('') });
@@ -129,6 +161,8 @@ export const hemoSchema = z.object({
   cases: z.array(caseSchema), audit: z.array(auditSchema).default([]),
   /** Escala de sobreaviso: hemodinamicista de plantão para urgência em cada dia. */
   onCall: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), doctorId: z.string() })).default([]),
+  values: valuesSchema,
+  roomBlocks: z.array(roomBlockSchema).default([]),
 });
 export type HemoData = z.infer<typeof hemoSchema>;
 export type HemoCase = HemoData['cases'][number];
@@ -143,6 +177,8 @@ export type Glosa = HemoCase['claim']['glosas'][number];
 export type GlosaStatus = typeof glosaStatuses[number];
 export type FollowUpOutcome = typeof followUpOutcomes[number];
 export type Medication = HemoCase['meds'][number];
+export type Vital = HemoCase['vitals'][number];
+export type RoomBlock = HemoData['roomBlocks'][number];
 
 /**
  * Versão 1 tinha estoque próprio (materials/lots). Os materiais de demonstração viraram produtos do Estoque
@@ -257,7 +293,7 @@ export function decideAuthorization(data: HemoData, caseId: string, approved: bo
     return { ...item, authorized: value };
   });
   const partial = items.some(i => i.authorized < i.requested);
-  return commit(data, caseId, x => ({ ...x, stage: approved ? 'Agendamento' : 'Cancelado', opme: { ...x.opme, items }, authorization: { status: approved ? 'Autorizada' : 'Negada', guide: guide.trim(), note: note.trim() }, cancelReason: approved ? '' : `Autorização negada: ${note.trim()}` }), approved ? 'Autorização registrada' : 'Autorização negada', approved ? `Guia ${guide.trim()}${items.length ? ` · OPME ${partial ? 'autorizado parcialmente' : 'autorizado'}` : ''}` : note.trim(), now);
+  return commit(data, caseId, x => ({ ...x, stage: approved ? 'Agendamento' : 'Cancelado', opme: { ...x.opme, items }, authorization: { status: approved ? 'Autorizada' : 'Negada', guide: guide.trim(), note: note.trim() }, cancelReason: approved ? '' : `Autorização negada: ${note.trim()}`, cancelCategory: approved ? '' : 'Autorização negada', cancelledAt: approved ? '' : now.toISOString() }), approved ? 'Autorização registrada' : 'Autorização negada', approved ? `Guia ${guide.trim()}${items.length ? ` · OPME ${partial ? 'autorizado parcialmente' : 'autorizado'}` : ''}` : note.trim(), now);
 }
 
 // ---------- OPME: órteses, próteses e materiais especiais (no convênio, exigem autorização própria) ----------
@@ -302,6 +338,8 @@ export function startEmergency(data: HemoData, input: EmergencyInput, now = new 
   const ecgAt = input.ecgAt?.trim() ?? '';
   if (ecgAt && (!stamp.safeParse(ecgAt).success || ecgAt < input.doorAt || ecgAt > at)) throw new Error('O ECG deve ser entre a chegada e agora.');
   if (data.cases.some(c => c.patientId === patient.id && ['Sala', 'Recuperação'].includes(c.stage))) throw new Error('Este paciente já está em sala ou em recuperação.');
+  const block = blockOverlapping(data, input.roomId, at, addMinutes(at, 1));
+  if (block) throw new Error(`Sala bloqueada agora (${block.reason.toLocaleLowerCase('pt-BR')}, ${blockSpan(block)}). Escolha outra sala.`);
   const regularize = type.needsAuthorization && insured(patient);
   const draft = caseSchema.parse({ id: newId(), patientId: patient.id, typeId: type.id, requestedBy: input.requestedBy || 'Emergência', indication: input.indication, priority: 'Urgência', createdAt: now.toISOString(), stage: 'Preparo', doorAt: input.doorAt, urgency: { ecgAt, teamCalledAt: '', teamArrivedAt: '' }, authorization: { status: regularize ? 'Regularizar' : 'Não se aplica' }, schedule: { roomId: input.roomId, doctorId: input.doctorId, start: at } });
   return { ...data, revision: data.revision + 1, cases: [draft, ...data.cases], audit: [{ id: newId(), at: now.toISOString(), caseId: draft.id, action: 'Urgência aberta', detail: `${type.name} · ${patient.name} · chegada ${input.doorAt.slice(11)}`, by: '' }, ...data.audit] };
@@ -327,6 +365,10 @@ export function regularizeAuthorization(data: HemoData, catalog: Product[], case
 
 // ---------- 2. Agenda da sala ----------
 export type ScheduleInput = { roomId: string; doctorId: string; start: string };
+/** Bloqueio da sala que cruza o intervalo [start, end). */
+export const blockOverlapping = (data: HemoData, roomId: string, start: string, end: string) => data.roomBlocks.find(b => b.roomId === roomId && start < b.end && b.start < end);
+const shortStamp = (v: string) => `${v.slice(8, 10)}/${v.slice(5, 7)} ${v.slice(11, 16)}`;
+export const blockSpan = (b: RoomBlock) => `${shortStamp(b.start)} a ${b.start.slice(0, 10) === b.end.slice(0, 10) ? b.end.slice(11, 16) : shortStamp(b.end)}`;
 /** Ocupação = duração do procedimento + preparo da sala depois dele. */
 export const occupancy = (data: HemoData, c: { typeId: string }, start: string) => { const t = data.types.find(x => x.id === c.typeId)!; return { start, end: addMinutes(start, t.duration), freeAt: addMinutes(start, t.duration + t.turnover) }; };
 export function scheduleProblem(data: HemoData, caseId: string, input: ScheduleInput, now = new Date()): string {
@@ -336,6 +378,8 @@ export function scheduleProblem(data: HemoData, caseId: string, input: ScheduleI
   if (!stamp.safeParse(input.start).success) return 'Informe data e hora válidas.';
   if (input.start < localStamp(now)) return 'Escolha um horário futuro.';
   const mine = occupancy(data, c, input.start);
+  const block = blockOverlapping(data, input.roomId, mine.start, mine.freeAt);
+  if (block) return `Sala bloqueada (${block.reason.toLocaleLowerCase('pt-BR')}) de ${blockSpan(block)}.`;
   for (const other of data.cases) {
     if (other.id === c.id || !other.schedule || ['Encerrado', 'Cancelado', 'Faturamento', 'Laudo'].includes(other.stage)) continue;
     const theirs = occupancy(data, other, other.schedule.start);
@@ -579,11 +623,13 @@ export function allGlosas(data: HemoData) {
   return data.cases.flatMap(c => c.claim.glosas.map(g => ({ c, g, patient: patientOf(data, c).name })));
 }
 
-export function cancelCase(data: HemoData, caseId: string, reason: string, now = new Date()): HemoData {
+/** category = motivo da lista; reason = detalhe em texto. Sem categoria (chamadas antigas), fica "Outro". */
+export function cancelCase(data: HemoData, caseId: string, reason: string, now = new Date(), category: CancelCategory = 'Outro'): HemoData {
   const c = findCase(data, caseId);
   requireStage(c, 'Autorização', 'Agendamento', 'Preparo');
+  if (!cancelCategories.includes(category)) throw new Error('Escolha o motivo do cancelamento.');
   if (!reason.trim()) throw new Error('Informe o motivo do cancelamento.');
-  return commit(data, caseId, x => ({ ...x, stage: 'Cancelado', cancelReason: reason.trim() }), 'Cancelado', reason.trim(), now);
+  return commit(data, caseId, x => ({ ...x, stage: 'Cancelado', cancelReason: reason.trim(), cancelCategory: category, cancelledAt: now.toISOString() }), 'Cancelado', `${category} · ${reason.trim()}`, now);
 }
 
 // ---------- Materiais: visão da hemodinâmica sobre o Estoque do hospital ----------

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, LogOut, Menu, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
 import { availableQuantity, daysToExpiry, formatDate, getProduct as findProduct, makeDemoData, normalizeData, orderReservedQuantity, storageKey, withHemoCatalog, type DemoData, type Movement, type Stock, type Product } from './data';
 import Analytics from './Analytics';
 import Catalog from './Catalog';
@@ -59,7 +59,7 @@ function parseHash(): Route {
 const narrowScreen = () => window.matchMedia('(max-width: 1279px)').matches;
 const pageTitle: Record<Page, string> = { hemo: 'Hemodinâmica', agenda: 'Agenda e atendimento', profiles: 'Perfis de atendimento', analytics: 'Visão estratégica do estoque', overview: 'Operação de estoque', stock: 'Estoque por lote', scan: 'Leitura de código', alerts: 'Alertas de estoque', catalog: 'Cadastro e importação', counts: 'Inventário físico' };
 const pageSubtitle: Record<Page, string> = {
-  hemo: 'Do pedido ao faturamento: autorização, sala, preparo, materiais por paciente, laudo com copilot e notas.',
+  hemo: '',
   agenda: 'Consultas, horários, fluxo de atendimento e notificações em uma agenda única.',
   profiles: 'Cadastros administrativos de pacientes e profissionais da equipe.',
   analytics: 'Disponibilidade de dispositivos, exposição por validade e pendências entre unidades.',
@@ -133,6 +133,10 @@ function Workspace({ auth }: { auth: AuthSession }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
+  /** Menu lateral só com ícones (preferência deste navegador). */
+  const [rail, setRail] = useState(() => { try { return localStorage.getItem('hemo-sidebar-rail') === '1'; } catch { return false; } });
+  function toggleRail() { setRail(current => { try { localStorage.setItem('hemo-sidebar-rail', current ? '0' : '1'); } catch { /* vale só nesta sessão */ } return !current; }); }
+  const quickSearchRef = useRef<HTMLInputElement>(null);
   const [inventoryView, setInventoryView] = useState<'counts' | 'movements'>('counts');
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('Todas as situações');
@@ -158,6 +162,16 @@ function Workspace({ auth }: { auth: AuthSession }) {
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(data)); setStorageWarning(false); } catch { setStorageWarning(true); } }, [data]);
   useEffect(() => { window.scrollTo(0, 0); }, [page]);
   useEffect(() => { if (page === 'scan') scanInputRef.current?.focus(); }, [page]);
+  /** Atalho "/" leva à busca de áreas, fora de campos de digitação. */
+  useEffect(() => {
+    function focusSearch(event: KeyboardEvent) {
+      const target = event.target as HTMLElement;
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      event.preventDefault(); quickSearchRef.current?.focus();
+    }
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
   useEffect(() => {
     function syncFromAddress() { const next = parseHash(); if (!next.lotId) lotPushedFromList.current = false; setRoute(next); setMenuOpen(false); setNotificationOpen(false); setCameraOn(false); }
     window.addEventListener('hashchange', syncFromAddress);
@@ -267,7 +281,7 @@ function Workspace({ auth }: { auth: AuthSession }) {
   const unreadHospitalNotifications = recentHospitalNotifications.filter((item) => !item.read).length;
   const notificationCount = unreadHospitalNotifications + alertStock.length;
 
-  return <div className="app-shell" style={{ '--brand-900': hospitalConfig?.accent ?? '#17688f', '--brand-950': '#103e58', '--brand-800': hospitalConfig?.accent ?? '#2582a6' } as React.CSSProperties}>
+  return <div className={`app-shell ${rail ? 'is-rail' : ''}`} style={{ '--brand-900': hospitalConfig?.accent ?? '#17688f', '--brand-950': '#103e58', '--brand-800': hospitalConfig?.accent ?? '#2582a6' } as React.CSSProperties}>
     <a className="skip-link" href="#conteudo" onClick={(event) => { event.preventDefault(); document.getElementById('conteudo')?.focus(); }}>Ir para o conteúdo</a>
     <header className="app-header">
       <div className="header-bar">
@@ -275,17 +289,18 @@ function Workspace({ auth }: { auth: AuthSession }) {
         <span className="mobile-page-title">{stockPages.has(page) ? 'Estoque' : pageTitle[page]}</span>
         <button ref={menuButtonRef} className="header-menu-toggle icon-button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen((current) => !current)}>{menuOpen ? <X size={21}/> : <Menu size={21}/>}</button>
       </div>
-      <nav id="main-navigation" className={`header-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Menu principal"><span className="header-nav-heading">Áreas do sistema</span>{visibleNav.map(({ page: target, slug, label, icon: Icon }) => { const active = page === target || (target === 'overview' && stockPages.has(page)); return <a key={label} href={`#/${slug}`} className={`nav-item ${active ? 'active' : ''}`} aria-current={active ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigate(target); }}><Icon size={19} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span></a>; })}</nav>
-      <div className="sidebar-status"><span className="sidebar-status-dot"/><div><strong>Ambiente local</strong><small>Dados fictícios de demonstração</small></div></div>
+      <nav id="main-navigation" className={`header-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Menu principal"><span className="header-nav-heading">Áreas do sistema</span>{visibleNav.map(({ page: target, slug, label, icon: Icon }) => { const active = page === target || (target === 'overview' && stockPages.has(page)); return <a key={label} href={`#/${slug}`} className={`nav-item ${active ? 'active' : ''}`} title={rail ? label : undefined} aria-current={active ? 'page' : undefined} onClick={(event) => { event.preventDefault(); navigate(target); }}><Icon size={19} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span></a>; })}</nav>
+      <div className="sidebar-status"><span className="sidebar-status-dot" title="Local · dados fictícios"/><div><strong>Local</strong><small>· dados fictícios</small></div><button type="button" className="rail-toggle" aria-label={rail ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={rail ? 'Expandir menu' : 'Recolher menu'} aria-pressed={rail} onClick={toggleRail}>{rail ? <PanelLeftOpen size={16}/> : <PanelLeftClose size={16}/>}</button></div>
     </header>
     {menuOpen && <button className="header-menu-backdrop" aria-label="Fechar navegação" tabIndex={-1} onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}/>}
     <main className="main">
+      <ContextBar unit={institution || 'Unidade de demonstração'} timeZone={hospitalConfig?.timezone ?? 'America/Sao_Paulo'}/>
       <div className="content" id="conteudo" tabIndex={-1}>
         <div className="page-head">
-          <div className="page-title-block"><div className="breadcrumb">{page === 'analytics' ? 'Gestão' : page === 'hemo' ? 'Assistência' : stockPages.has(page) ? 'Estoque' : page === 'profiles' ? 'Atendimento' : 'Operação'} <span>/</span> {pageTitle[page]}</div><h1>{pageTitle[page]}</h1><p className="subhead">{pageSubtitle[page]}</p></div>
+          <div className="page-title-block"><h1>{pageTitle[page]}</h1>{pageSubtitle[page] && <p className="subhead">{pageSubtitle[page]}</p>}</div>
           <div className="shell-tools">
             <div className="quick-search-wrap">
-              <label className="quick-search"><Search size={18} aria-hidden="true"/><span className="sr-only">Buscar área do sistema</span><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Buscar área do sistema"/></label>
+              <label className="quick-search"><Search size={18} aria-hidden="true"/><span className="sr-only">Buscar área do sistema</span><input ref={quickSearchRef} value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') { setQuickSearch(''); event.currentTarget.blur(); } if (event.key === 'Enter' && quickMatches[0]) { navigate(quickMatches[0].page); setQuickSearch(''); event.currentTarget.blur(); } }} placeholder="Buscar área do sistema"/><kbd aria-hidden="true">/</kbd></label>
               {quickMatches.length > 0 && <div className="quick-search-results" role="listbox" aria-label="Áreas encontradas">{quickMatches.map(({ page: target, label, icon: Icon }) => <button key={target} role="option" onClick={() => { navigate(target); setQuickSearch(''); }}><Icon size={17}/><span>{label}</span><ArrowRight size={15}/></button>)}</div>}
             </div>
             <div className="notification-center"><button className="utility-button" aria-label="Abrir notificações" aria-expanded={notificationOpen} aria-controls="notification-panel" onClick={() => setNotificationOpen(current => !current)}><Bell size={19}/>{notificationCount > 0 && <span/>}</button>{notificationOpen && <section id="notification-panel" className="notification-panel" aria-label="Central de notificações"><div className="notification-panel-head"><div><strong>Notificações</strong><small>{notificationCount} {notificationCount === 1 ? 'pendência' : 'pendências'}</small></div><button className="icon-button" aria-label="Fechar notificações" onClick={() => setNotificationOpen(false)}><X size={17}/></button></div><div className="notification-panel-list">{recentHospitalNotifications.map(item => <button key={item.id} className={item.read ? 'is-read' : ''} onClick={() => { if (!item.read) hospital.update(current => readNotification(current, item.id)); navigate('agenda'); }}><CalendarDays size={17}/><span><strong>{item.title}</strong><small>{new Date(item.createdAt).toLocaleString('pt-BR', { timeZone: hospitalConfig?.timezone ?? 'America/Sao_Paulo' })}</small></span></button>)}{recentHospitalNotifications.length === 0 && <p>Nenhuma notificação recente da agenda.</p>}<button className="stock-notification" onClick={() => navigate('alerts')}><Bell size={17}/><span><strong>Alertas de estoque</strong><small>{alertStock.length} {alertStock.length === 1 ? 'item requer' : 'itens requerem'} atenção</small></span><ArrowRight size={16}/></button></div></section>}</div>
@@ -294,7 +309,7 @@ function Workspace({ auth }: { auth: AuthSession }) {
         </div>
         {stockPages.has(page) && <nav className="stock-section-nav" aria-label="Seções do estoque">{stockSections.map(({ page: target, label, icon: Icon }) => <button key={target} type="button" aria-current={page === target ? 'page' : undefined} onClick={() => navigate(target)}><Icon size={17} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span>{target === 'alerts' && alertStock.length > 0 && <strong aria-label={`${alertStock.length} alertas`}>{alertStock.length}</strong>}</button>)}</nav>}
         <div className="page-actions-row"><div className="head-actions">{page === 'stock' && <button className="button secondary" onClick={() => downloadCsv(data)}><Download size={16}/> Exportar CSV</button>}{page === 'analytics' && <button className="button secondary" onClick={() => navigate('stock')}>Ver estoque <ArrowRight size={16}/></button>}{['overview', 'stock', 'alerts'].includes(page) && <button className="button primary" onClick={() => openMovement()}><Plus size={17}/> Nova movimentação</button>}</div></div>
-        {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot}/>}
+        {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot} user={user}/>}
         {page === 'agenda' && <HospitalWorkspace key="agenda" store={hospital}/>}
         {page === 'profiles' && <HospitalWorkspace key="profiles" store={hospital} auth={auth} profiles/>}
         {storageWarning && <p role="alert" className="module-error">Não foi possível salvar no navegador. As alterações desta sessão podem ser perdidas ao fechar a página.</p>}
@@ -318,6 +333,17 @@ function Workspace({ auth }: { auth: AuthSession }) {
     </main>
     {modal && selected && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeModal(); }}><div className="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div className="modal-head"><div><span className="modal-caption">Movimentação de estoque</span><h2 id="modal-title">Novo registro</h2></div><button className="icon-button" aria-label="Fechar" onClick={closeModal}><X size={19}/></button></div><form onSubmit={registerMovement}><div className="modal-body"><label className="field-label" htmlFor="stock-select">Produto · lote · local</label><select ref={modalFirstField} id="stock-select" value={selected.id} onChange={(event) => { setSelectedId(event.target.value); setFormError(''); }}>{data.stock.map((item) => <option key={item.id} value={item.id}>{getProduct(item.productId).name} · {item.lot} · {item.location}</option>)}</select><p className="field-hint">Físico: <strong>{selected.quantity} un.</strong> · Disponível: <strong>{availableQuantity(selected)} un.</strong> · Validade: <strong>{formatDate(selected.expiresAt)}</strong></p><div className="form-row"><div><label className="field-label" htmlFor="movement-type">Tipo</label><select id="movement-type" value={movementType} onChange={(event) => { setMovementType(event.target.value as 'Entrada' | 'Saída' | 'Transferência'); setFormError(''); }}><option>Entrada</option><option>Saída</option><option>Transferência</option></select></div><div><label className="field-label" htmlFor="movement-quantity">Quantidade (un.)</label><input id="movement-quantity" type="number" min="1" step="1" inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} required/></div></div>{movementType !== 'Entrada' && <p className="field-hint">Saída e transferência usam apenas o disponível ({availableQuantity(selected)} un.).</p>}{movementType === 'Transferência' && <><label className="field-label" htmlFor="destination">Destino</label><input id="destination" list="stock-locations" required value={destination} onChange={(event) => setDestination(event.target.value)}/><p className="field-hint">O destino recebe o saldo somente após a confirmação, em quarentena.</p><datalist id="stock-locations">{[...new Set(data.stock.map((item) => item.location))].map((location) => <option key={location} value={location}/>)}</datalist></>}{formError && <div className="form-error" role="alert"><AlertTriangle size={16}/>{formError}</div>}</div><div className="modal-actions"><button type="button" className="button secondary" onClick={closeModal}>Cancelar</button><button type="submit" className="button primary">Registrar movimentação</button></div></form></div></div>}
   </div>;
+}
+
+/** Unidade, plantão (diurno 07–19 h) e hora local, atualizados a cada 30 s. */
+function ContextBar({ unit, timeZone }: { unit: string; timeZone: string }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const id = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(id); }, []);
+  const hour = Number(now.toLocaleString('en-US', { timeZone, hour: '2-digit', hourCycle: 'h23' }));
+  const night = hour < 7 || hour >= 19;
+  const date = now.toLocaleDateString('pt-BR', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+  const time = now.toLocaleTimeString('pt-BR', { timeZone, hour: '2-digit', minute: '2-digit' });
+  return <div className="context-bar" aria-label="Contexto do plantão"><strong>{unit}</strong><span className={`shift ${night ? 'is-night' : ''}`}>Plantão {night ? 'noturno · 19–07 h' : 'diurno · 07–19 h'}</span><time dateTime={now.toISOString()}>{date} · {time}</time></div>;
 }
 
 function StockTable({ items, data, compact = false, narrow = false, selectedId, onSelect, empty }: { items: Stock[]; data: DemoData; compact?: boolean; narrow?: boolean; selectedId?: string; onSelect: (id: string) => void; empty?: React.ReactNode }) {
