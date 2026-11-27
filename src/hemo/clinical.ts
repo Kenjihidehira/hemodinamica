@@ -3,6 +3,7 @@ import {
   ageAt, commit, daysUntil, findCase, hemoMaterials, implantsOf, localStamp, medRoutes, medUnits, minutesOf, newId, patientOf, pendingReplenishment,
   requireStage, stamp, typeOf, type HemoCase, type HemoData, type Medication, type Stage,
 } from './domain.ts';
+import { reconciliationText } from './safety.ts';
 
 /**
  * Funções clínicas e de qualidade da hemodinâmica: autoria, urgência por etapas, sobreaviso,
@@ -158,6 +159,7 @@ export function dischargeDraft(data: HemoData, catalog: Product[], c: HemoCase) 
     `• ${end} fria, pálida, dormente ou com dor.`,
     ...(stents.length ? ['', `Você recebeu ${stents.length === 1 ? 'um stent' : `${stents.length} stents`} no coração.`, '• Não pare nenhum remédio que "afina o sangue" (antiagregante) sem falar com o seu cardiologista, nem para dentista ou outra cirurgia.', '• Mostre este papel em qualquer consulta ou atendimento.'] : []),
     ...(c.renal.recheckDue ? ['', `Exame de sangue (creatinina) em ${c.renal.recheckDue.split('-').reverse().join('/')}, conforme o pedido médico.`] : []),
+    ...(reconciliationText(c) ? ['', reconciliationText(c)] : []),
   ].join('\n');
 }
 export type DischargeInput = { text: string; medications: string; returnDate: string };

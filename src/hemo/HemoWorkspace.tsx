@@ -16,6 +16,9 @@ import { ComplicationsField, FindingEditor, PressuresField, StructuredIndicators
 import { CaseCostLine, Operations, type Actor } from './OperationsPanel';
 import { CareSummary, DayBlocks, HandoffPanel, RoomBlocksPanel, SedationPanel, VitalsPanel } from './CarePanels';
 import { needsHandoff } from './care';
+import { ContrastCounter, IdentityPanel, MaterialScan, ReconciliationPanel } from './SafetyPanels';
+import { DoctorQuality, ForecastPanel, MonthlyReport, MyTasks, PublicBoardButton, TimeAlertsBar } from './TeamPanels';
+import { tasksFor } from './team';
 import { complicationText, describeFinding, emptyFinding, findingProblem, normalizeFinding, pressureText, structuredReportText } from './report';
 import { dateTime, when, type Props, type Update } from './ui';
 import { availableQuantity, type DemoData } from '../data';
@@ -32,8 +35,12 @@ function stageClock(c: HemoCase, now: string) {
   return min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`;
 }
 
-export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot, user }: { store: HemoStore; stock: DemoData; onStockChange: (next: DemoData) => void; onOpenLot: (stockId: string) => void; user: Actor }) {
-  const [tab, setTab] = useState<'cases' | 'rooms' | 'materials' | 'claims' | 'followup' | 'indicators' | 'management' | 'invoices' | 'integrations'>('cases');
+export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot, user, night = false }: { store: HemoStore; stock: DemoData; onStockChange: (next: DemoData) => void; onOpenLot: (stockId: string) => void; user: Actor; night?: boolean }) {
+  const [tab, setTab] = useState<'tasks' | 'cases' | 'rooms' | 'materials' | 'claims' | 'followup' | 'indicators' | 'management' | 'invoices' | 'integrations'>('cases');
+  /** Abrir um caso vindo de outra aba (tarefas, avisos) ou a urgência pelo botão do plantão noturno. n força remontar a lista. */
+  const [focus, setFocus] = useState({ id: '', emergency: false, n: 0 });
+  const openCase = (id: string) => { setTab('cases'); setFocus(f => ({ id, emergency: false, n: f.n + 1 })); window.scrollTo({ top: 0 }); };
+  const openEmergency = () => { setTab('cases'); setFocus(f => ({ id: '', emergency: true, n: f.n + 1 })); window.scrollTo({ top: 0 }); };
   const { data, update, error } = store;
   if (!data) return <section className="panel module-form"><h2>Hemodinâmica indisponível</h2><p role="alert">{error}</p><button className="button secondary" onClick={() => { if (window.confirm('Apagar os dados salvos da hemodinâmica e voltar à demonstração?')) store.reset(); }}>Restaurar demonstração</button></section>;
   function commitBoth(change: (hemo: HemoData, stock: DemoData) => WithStock) {
@@ -46,30 +53,35 @@ export default function HemoWorkspace({ store, stock, onStockChange, onOpenLot, 
   const pending = pendingReplenishment(data, stock.products).length, alerts = materialAlerts(stock).length;
   const openGlosas = allGlosas(data).filter(x => x.g.status === 'Aberta').length, overdue = pendingFollowUps(data).filter(x => x.days < 0).length + pendingRenalRechecks(data).filter(x => x.days < 0).length;
   const n = (count: number) => count ? ` (${count})` : '';
-  const tabs = [['cases', 'Procedimentos'], ['rooms', 'Salas do dia'], ['materials', `Materiais${n(alerts + pending)}`], ['claims', `Convênios e glosas${n(openGlosas)}`], ['followup', `Acompanhamento${n(overdue)}`], ['indicators', 'Indicadores'], ['management', 'Ocupação e custos'], ['invoices', 'Notas fiscais'], ['integrations', 'Integrações']] as const;
+  const myTasks = tasksFor(user.role, data).length;
+  const tabs = [['tasks', `Minhas tarefas${n(myTasks)}`], ['cases', 'Procedimentos'], ['rooms', 'Salas do dia'], ['materials', `Materiais${n(alerts + pending)}`], ['claims', `Convênios e glosas${n(openGlosas)}`], ['followup', `Acompanhamento${n(overdue)}`], ['indicators', 'Indicadores'], ['management', 'Ocupação e custos'], ['invoices', 'Notas fiscais'], ['integrations', 'Integrações']] as const;
   return <div className="hospital-workspace hemo-workspace module-stack">
     <div className="hospital-local-note"><strong>Demonstração</strong><span>Pacientes fictícios, dados só neste navegador. Notas fiscais e integrações simuladas.</span><button type="button" className="text-link" onClick={() => { if (window.confirm('Restaurar os procedimentos e materiais de demonstração? O que foi feito neste navegador será apagado.')) store.reset(); }}><RotateCcw size={13}/> Restaurar demonstração</button></div>
     {error && <div className="module-error" role="alert">{error}<button type="button" className="message-close" aria-label="Fechar aviso" onClick={store.clearError}><X size={16}/></button></div>}
     <div className="module-tabs hospital-tabs" role="group" aria-label="Hemodinâmica">{tabs.map(([id, label]) => <button key={id} type="button" aria-pressed={tab === id} onClick={e => { setTab(id); store.clearError(); revealTab(e.currentTarget); }}>{label}</button>)}</div>
-    {tab === 'cases' && <Cases {...ctx}/>}
-    {tab === 'rooms' && <><Rooms data={data}/><RoomBlocksPanel data={data} update={update}/><OnCallPanel data={data} update={update}/></>}
-    {tab === 'materials' && <Materials {...ctx}/>}
+    <TimeAlertsBar data={data} onOpen={openCase}/>
+    {tab === 'tasks' && <MyTasks data={data} role={user.role} onOpen={openCase}/>}
+    {tab === 'cases' && <Cases key={focus.n} {...ctx} focusId={focus.id} startEmergency={focus.emergency}/>}
+    {tab === 'rooms' && <><div className="hemo-tab-actions"><PublicBoardButton/></div><Rooms data={data}/><RoomBlocksPanel data={data} update={update}/><OnCallPanel data={data} update={update}/></>}
+    {tab === 'materials' && <><Materials {...ctx}/><ForecastPanel data={data} stock={stock}/></>}
     {tab === 'claims' && <Claims {...ctx}/>}
     {tab === 'followup' && <FollowUps {...ctx}/>}
-    {tab === 'indicators' && <Indicators {...ctx}/>}
+    {tab === 'indicators' && <><MonthlyReport data={data} stock={stock}/><DoctorQuality data={data} user={user}/><Indicators {...ctx}/></>}
     {tab === 'management' && <Operations {...ctx} user={user}/>}
     {tab === 'invoices' && <Invoices data={data}/>}
     {tab === 'integrations' && <Integrations/>}
+    {night && <button type="button" className="hemo-night-urgent" onClick={openEmergency}><Siren size={20}/> Urgência</button>}
   </div>;
 }
 
 // ---------------- Procedimentos ----------------
-function Cases(ctx: Props) {
+function Cases({ focusId = '', startEmergency = false, ...ctx }: Props & { focusId?: string; startEmergency?: boolean }) {
   const { data } = ctx;
-  const [filter, setFilter] = useState<Stage | 'Em andamento' | 'Todos'>('Em andamento');
+  const focused = data.cases.find(c => c.id === focusId);
+  const [filter, setFilter] = useState<Stage | 'Em andamento' | 'Todos'>(focused && ['Encerrado', 'Cancelado'].includes(focused.stage) ? 'Todos' : 'Em andamento');
   /** Em telas estreitas lista e ficha se alternam (mestre-detalhe); por isso nada abre selecionado. */
-  const [selectedId, setSelectedId] = useState(narrowLayout() ? '' : data.cases.find(c => c.stage === 'Laudo')?.id ?? data.cases[0]?.id ?? '');
-  const [creating, setCreating] = useState<'' | 'elective' | 'emergency'>('');
+  const [selectedId, setSelectedId] = useState(focused ? focused.id : startEmergency || narrowLayout() ? '' : data.cases.find(c => c.stage === 'Laudo')?.id ?? data.cases[0]?.id ?? '');
+  const [creating, setCreating] = useState<'' | 'elective' | 'emergency'>(startEmergency ? 'emergency' : '');
   const [query, setQuery] = useState('');
   const active = (c: HemoCase) => !['Encerrado', 'Cancelado'].includes(c.stage);
   const term = query.trim().toLocaleLowerCase('pt-BR');
@@ -89,7 +101,7 @@ function Cases(ctx: Props) {
   }
   const selected = data.cases.find(c => c.id === selectedId);
   const count = (s: Stage) => data.cases.filter(c => c.stage === s).length;
-  const [view, setView] = useState<'list' | 'board'>(() => { try { return localStorage.getItem('hemo-cases-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } });
+  const [view, setView] = useState<'list' | 'board'>(() => { if (focusId || startEmergency) return 'list'; try { return localStorage.getItem('hemo-cases-view') === 'board' ? 'board' : 'list'; } catch { return 'list'; } });
   const now = useNow();
   function changeView(next: 'list' | 'board') { setView(next); try { localStorage.setItem('hemo-cases-view', next); } catch { /* preferência só desta sessão */ } }
   function open(id: string) { select(id); changeView('list'); }
@@ -261,6 +273,7 @@ function CaseSheet(props: Props & { c: HemoCase }) {
       {c.stage === 'Sala' && <RoomStep {...props}/>}
       {c.stage === 'Recuperação' && <RecoveryStep {...props}/>}
       {renalStages.includes(c.stage) && <RenalRecheckStep update={update} c={c}/>}
+      {['Laudo', 'Faturamento', 'Encerrado'].includes(c.stage) && <ReconciliationPanel key={`rec-${c.reconciliation.doneAt}`} data={data} update={update} stock={stock} c={c}/>}
       {['Laudo', 'Faturamento', 'Encerrado'].includes(c.stage) && <DischargePanel key={c.discharge.deliveredAt} data={data} update={update} stock={stock} c={c}/>}
       {c.stage === 'Laudo' && <ReportStep {...props}/>}
       {c.stage === 'Faturamento' && <BillingStep {...props}/>}
@@ -345,6 +358,7 @@ function PrepStep({ data, update, c }: Props & { c: HemoCase }) {
   return <div className="hemo-step"><h3>{urgent ? 'Time-out da urgência' : 'Preparo e time-out'}</h3>
     {!urgent && <PrepMessage data={data} c={c}/>}
     <ConsentPanel data={data} update={update} c={c}/>
+    <IdentityPanel data={data} update={update} c={c}/>
     {urgent && <p className="field-hint">Na urgência o preparo eletivo não bloqueia a entrada em sala; marque o que foi possível. O time-out é obrigatório.</p>}
     <div className="hemo-checks"><fieldset><legend>Preparo do paciente{urgent ? ' (opcional)' : ''}</legend>{(Object.keys(prepItems) as (keyof PrepChecks)[]).map(k => <label key={k} className="hospital-check"><input type="checkbox" checked={prep[k]} onChange={e => setPrep({ ...prep, [k]: e.target.checked })}/>{prepItems[k]}</label>)}</fieldset>
       <fieldset><legend>Time-out na sala (cirurgia segura)</legend>{(Object.keys(timeoutItems) as (keyof TimeoutChecks)[]).map(k => <label key={k} className="hospital-check"><input type="checkbox" checked={timeout[k]} onChange={e => setTimeoutChecks({ ...timeout, [k]: e.target.checked })}/>{timeoutItems[k]}</label>)}</fieldset></div>
@@ -369,12 +383,14 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
   return <div className="hemo-step"><h3>Em sala · entrada {when(c.intra.roomIn)}</h3>
     <h4>Materiais usados no paciente</h4>
     <p className="field-hint">Sai do Estoque do hospital como "uso em paciente" e fica ligado a este caso. Só aparecem lotes com saldo disponível (sem reserva, bloqueio, quarentena ou vencimento); o que vence primeiro vem no topo.</p>
+    <MaterialScan data={data} stock={stock} c={c} onPick={setLotId}/>
     <div className="hemo-inline-form"><label className="grow">Material e lote<select value={lotId} onChange={e => setLotId(e.target.value)}>{usable.map(s => { const m = product(s.productId); return <option key={s.id} value={s.id}>{m.name} · lote {s.lot} · {availableQuantity(s)} un. · vence {s.expiresAt.split('-').reverse().join('/')}{m.consigned ? ' · consignado' : ''}</option>; })}</select></label>{chosenProduct.implantable ? <label>Nº de série (etiqueta)<input value={serial} onChange={e => setSerial(e.target.value)} placeholder="Da etiqueta do implante"/></label> : <label>Qtd.<input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)}/></label>}<button className="button secondary" disabled={!lotId} onClick={() => { if (commitBoth((h, s) => consumeMaterial(h, s, c.id, lotId, chosenProduct.implantable ? 1 : Number(qty), new Date(), serial))) setSerial(''); }}><Plus size={15}/> Registrar</button></div>
     {chosenProduct.implantable && <p className="field-hint">Implante: uma unidade por registro, com a série da etiqueta. Ela vai para o laudo, para a conta do convênio e para o rastreio em caso de recall.</p>}
     {usable.length === 0 && <p className="field-hint">Nenhum lote da hemodinâmica com saldo disponível no Estoque.</p>}
     {gaps.length > 0 && <ul className="hemo-alerts">{gaps.map(g => <li key={g.product.id} className="is-high"><AlertTriangle size={15}/>{g.product.name}: usado {g.used}, autorizado {g.authorized}. Risco de glosa: peça complemento de autorização ao convênio.</li>)}</ul>}
     {c.materials.length > 0 ? <ul className="hemo-used">{c.materials.map(m => <li key={m.id}><span>{m.quantity} × {product(m.productId).name}<small>lote {m.lot}{m.serial ? ` · série ${m.serial}` : ''}{product(m.productId).consigned ? ' · consignado' : ''}</small></span><button className="text-link" onClick={() => commitBoth((h, s) => returnMaterial(h, s, c.id, m.id))}>Devolver</button></li>)}</ul> : <p className="field-hint">Nenhum material registrado ainda.</p>}
     <h4>Registro do procedimento</h4>
+    {typeOf(data, c).contrast && <ContrastCounter data={data} c={c} ml={intra.contrastMl} onBump={delta => setIntra(prev => ({ ...prev, contrastMl: Math.max(0, prev.contrastMl + delta) }))}/>}
     <div className="hospital-form-grid hemo-grid-3">
       <label>Via de acesso<select value={intra.access} onChange={e => set('access', e.target.value as Intra['access'])}><option value="">Selecione</option>{accessRoutes.map(a => <option key={a}>{a}</option>)}</select></label>
       <label>Início<input type="datetime-local" value={intra.start} onChange={e => set('start', e.target.value)}/></label>
@@ -399,7 +415,7 @@ function RoomStep({ data, update, stock, commitBoth, c }: Props & { c: HemoCase 
 function RecoveryStep({ data, update, stock, c }: Props & { c: HemoCase }) {
   const [r, setR] = useState<Recovery>(c.recovery);
   function release() {
-    const pending = [c.band.placedAt && !c.band.removedAt && 'a pulseira radial ainda não foi retirada', r.destination === 'Alta no mesmo dia' && !c.discharge.deliveredAt && 'a orientação de alta não foi entregue', needsHandoff(r.destination) && !c.handoff.at && `a passagem de plantão para ${r.destination === 'UTI' ? 'a UTI' : 'a internação'} não foi registrada`].filter(Boolean);
+    const pending = [c.band.placedAt && !c.band.removedAt && 'a pulseira radial ainda não foi retirada', r.destination === 'Alta no mesmo dia' && !c.discharge.deliveredAt && 'a orientação de alta não foi entregue', r.destination === 'Alta no mesmo dia' && !c.reconciliation.doneAt && 'a reconciliação de medicamentos não foi feita', needsHandoff(r.destination) && !c.handoff.at && `a passagem de plantão para ${r.destination === 'UTI' ? 'a UTI' : 'a internação'} não foi registrada`].filter(Boolean);
     if (pending.length && !window.confirm(`Atenção: ${pending.join(' e ')}. Liberar mesmo assim?`)) return;
     update(d => finishRecovery(d, c.id, r));
   }
@@ -411,6 +427,7 @@ function RecoveryStep({ data, update, stock, c }: Props & { c: HemoCase }) {
     <SedationPanel key={JSON.stringify(c.sedation)} update={update} c={c}/>
     <VitalsPanel update={update} c={c}/>
     <HandoffPanel key={`${c.handoff.at}|${r.destination}`} data={data} update={update} stock={stock} c={{ ...c, recovery: { ...c.recovery, ...r } }} destination={r.destination}/>
+    <ReconciliationPanel key={`rec-${c.reconciliation.doneAt}`} data={data} update={update} stock={stock} c={c}/>
     <DischargePanel key={c.discharge.deliveredAt} data={data} update={update} stock={stock} c={c}/>
     <div className="head-actions"><button className="button primary" onClick={release}><Check size={16}/> Liberar para laudo</button></div>
   </div>;

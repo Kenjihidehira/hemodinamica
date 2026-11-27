@@ -100,6 +100,13 @@ const emptyHandoff = { text: '', unit: '', receivedBy: '', at: '' };
 /** Bloqueio de sala (manutenção do angiógrafo etc.): a sala sai da agenda no período. */
 export const blockReasons = ['Manutenção preventiva', 'Manutenção corretiva', 'Calibração ou teste de qualidade', 'Limpeza terminal', 'Outro'] as const;
 const roomBlockSchema = z.object({ id: z.string(), roomId: z.string(), start: stamp, end: stamp, reason: z.enum(blockReasons), notes: text.default(''), createdAt: z.string() });
+/** Identificação do paciente antes do procedimento: leitura da pulseira ou conferência manual justificada. */
+export const identityMethods = ['Pulseira lida', 'Conferência manual'] as const;
+const emptyIdentity = { at: '', method: '' as const, reason: '' };
+/** Reconciliação de medicamentos na alta: o que o paciente já usava e a decisão para cada um. */
+export const reconcileDecisions = ['Manter', 'Suspender', 'Alterar dose', 'Nova prescrição'] as const;
+const reconcileItemSchema = z.object({ id: z.string(), drug: text.min(1, 'Informe o medicamento.').max(160), decision: z.union([z.enum(reconcileDecisions), z.literal('')]).default(''), resumeOn: z.string().default(''), note: text.max(300).default('') });
+const emptyReconciliation = { items: [], doneAt: '' };
 const emptyRenal = { baselineEgfr: null, contrastLimitMl: null, recheckDue: '', recheckCreatinine: null, recheckAt: '', aki: false };
 const emptyDischarge = { text: '', medications: '', returnDate: '', deliveredAt: '', by: '' };
 const emptyConsent = { signedAt: '', signer: '', relation: 'Paciente' as const, signature: '' };
@@ -151,6 +158,8 @@ const caseSchema = z.object({
   sedation: z.object({ level: z.union([z.enum(sedationLevels), z.literal('')]).default(''), responsible: text.default(''), notes: text.default('') }).default(emptySedation),
   /** Passagem de plantão para a unidade de destino: texto estruturado, quem recebeu e quando (ISO). */
   handoff: z.object({ text: z.string().default(''), unit: z.string().default(''), receivedBy: text.default(''), at: z.string().default('') }).default(emptyHandoff),
+  identity: z.object({ at: z.string().default(''), method: z.union([z.enum(identityMethods), z.literal('')]).default(''), reason: text.default('') }).default(emptyIdentity),
+  reconciliation: z.object({ items: z.array(reconcileItemSchema).default([]), doneAt: z.string().default('') }).default(emptyReconciliation),
 });
 /** by = usuário logado que fez a ação (preenchido ao gravar; vazio em registros antigos). */
 const auditSchema = z.object({ id: z.string(), at: z.string(), caseId: z.string().default(''), action: z.string(), detail: z.string(), by: z.string().default('') });
@@ -179,6 +188,7 @@ export type FollowUpOutcome = typeof followUpOutcomes[number];
 export type Medication = HemoCase['meds'][number];
 export type Vital = HemoCase['vitals'][number];
 export type RoomBlock = HemoData['roomBlocks'][number];
+export type ReconcileItem = HemoCase['reconciliation']['items'][number];
 
 /**
  * Versão 1 tinha estoque próprio (materials/lots). Os materiais de demonstração viraram produtos do Estoque
@@ -421,10 +431,13 @@ export function safetyAlerts(data: HemoData, c: HemoCase) {
   if (t.contrast && has(p.medications, /metformina/)) alerts.push({ level: 'atenção', text: 'Usa metformina: confirmar conduta com o contraste.' });
   return alerts;
 }
-/** O que falta para entrar em sala. Na urgência, o preparo eletivo não bloqueia; o time-out continua obrigatório. */
+/**
+ * O que falta para entrar em sala. Na urgência, o preparo eletivo não bloqueia; o time-out continua obrigatório,
+ * e a identificação (pulseira lida ou conferência manual justificada) vale para todos.
+ */
 export function prepMissing(c: HemoCase) {
   const prep = c.priority === 'Urgência' ? [] : (Object.keys(prepItems) as (keyof typeof prepItems)[]).filter(k => !c.prep[k]).map(k => prepItems[k]);
-  return [...prep, ...(Object.keys(timeoutItems) as (keyof typeof timeoutItems)[]).filter(k => !c.timeout[k]).map(k => `Time-out: ${timeoutItems[k]}`)];
+  return [...prep, ...(c.identity.at ? [] : ['Identificação: ler a pulseira do paciente']), ...(Object.keys(timeoutItems) as (keyof typeof timeoutItems)[]).filter(k => !c.timeout[k]).map(k => `Time-out: ${timeoutItems[k]}`)];
 }
 export function savePrep(data: HemoData, caseId: string, prep: PrepChecks, timeout: TimeoutChecks, notes: string, now = new Date()): HemoData {
   requireStage(findCase(data, caseId), 'Preparo');

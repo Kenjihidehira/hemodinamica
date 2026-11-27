@@ -1,5 +1,5 @@
 /* Hemodinâmica: usa as variáveis e classes base do sistema (styles.css, hospital.css). */
-.hemo-workspace textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 9px 10px; background: white; color: var(--ink); font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }
+.hemo-workspace textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 9px 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; line-height: 1.5; resize: vertical; }
 .hemo-workspace h3 { margin: 0; font-size: 15px; color: var(--ink); }
 .hemo-workspace h4 { margin: 8px 0 0; font-size: 12.5px; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; }
 .hemo-workspace .field-hint { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -39,7 +39,7 @@
 .hemo-alerts li svg { flex-shrink: 0; margin-top: 2px; }
 .hemo-alerts .is-high { background: var(--danger-bg); color: var(--danger); }
 .hemo-alerts .is-warn { background: var(--warn-bg); color: var(--warn); }
-.hemo-alerts .is-info { background: var(--info-bg); color: #293a78; }
+.hemo-alerts .is-info { background: var(--info-bg); color: var(--info-ink); }
 .panel > .hemo-alerts { margin: 0 20px 20px; }
 
 .hemo-stage { display: grid; gap: 16px; }
@@ -143,7 +143,7 @@
 .hemo-copilot-inline { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .hemo-review { padding: 12px 14px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; }
 .hemo-review ul { margin: 6px 0 0; padding-left: 18px; }
-.hemo-ai-tag { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 2px 8px; border-radius: 3px; background: var(--info-bg); color: #293a78; font-size: 11px; font-weight: 600; }
+.hemo-ai-tag { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 2px 8px; border-radius: 3px; background: var(--info-bg); color: var(--info-ink); font-size: 11px; font-weight: 600; }
 .hemo-signer { flex-direction: row !important; align-items: center; gap: 8px !important; }
 .hemo-signer select { width: auto !important; }
 .hemo-signed { padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
@@ -161,8 +161,8 @@
 .hemo-copilot-head small { color: var(--muted); font-size: 11.5px; }
 .hemo-setup { margin: 0; padding: 10px 12px; border-radius: 6px; background: var(--warn-bg); color: var(--warn); font-size: 12.5px; line-height: 1.7; }
 .hemo-copilot code { padding: 1px 5px; border-radius: 5px; background: rgba(0, 0, 0, .06); font-size: 12px; }
-.hemo-copilot input { background: white; }
-.hemo-brief { display: grid; gap: 8px; padding: 12px 14px; border-radius: 6px; background: white; font-size: 13px; line-height: 1.55; color: var(--ink); }
+.hemo-copilot input { background: var(--surface); }
+.hemo-brief { display: grid; gap: 8px; padding: 12px 14px; border-radius: 6px; background: var(--surface); font-size: 13px; line-height: 1.55; color: var(--ink); }
 .hemo-brief p { margin: 0; }
 .hemo-brief ul:not(.hemo-alerts) { margin: 0; padding-left: 18px; }
 
@@ -193,11 +193,11 @@
 .hemo-integration p { margin: 0; color: var(--ink); }
 
 /* Urgência e porta-balão */
-.button.hemo-urgent { background: var(--danger); border-color: var(--danger); color: white; }
+.button.hemo-urgent { background: var(--danger-solid); border-color: var(--danger); color: white; }
 .button.hemo-urgent:hover { filter: brightness(.94); }
 .hemo-urgent-tag { display: inline-block; justify-self: start; margin-top: 3px; padding: 1px 7px; border-radius: 3px; background: var(--danger-bg); color: var(--danger); font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .hemo-emergency { border-top: 4px solid var(--danger); }
-.hemo-dtb { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 6px; background: var(--info-bg); color: #293a78; font-size: 13px; }
+.hemo-dtb { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-radius: 6px; background: var(--info-bg); color: var(--info-ink); font-size: 13px; }
 .hemo-dtb.is-late { background: var(--danger-bg); color: var(--danger); }
 .hemo-dtb svg { flex-shrink: 0; }
 .hemo-step-warn { border-color: var(--warn); background: var(--warn-bg); }
@@ -237,7 +237,7 @@
 
 /* Rastreio e acompanhamento */
 .hemo-trace { padding: 0 20px 16px; }
-.hemo-search { flex-direction: row !important; align-items: center; gap: 8px !important; max-width: 520px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: white; color: var(--muted); }
+.hemo-search { flex-direction: row !important; align-items: center; gap: 8px !important; max-width: 520px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
 .hemo-search input { border: 0 !important; box-shadow: none !important; padding-inline: 0 !important; }
 .hemo-followups { display: grid; gap: 12px; padding: 0 20px 20px; }
 .hemo-followup { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 6px; }
@@ -265,7 +265,7 @@
 .hemo-timeline summary, .hemo-discharge summary, .hemo-consent summary { color: var(--brand-900); }
 .hemo-timeline, .hemo-discharge, .hemo-consent { display: grid; gap: 12px; }
 .hemo-timeline[open], .hemo-discharge[open], .hemo-consent[open] { padding-bottom: 16px; }
-.hemo-contrast { display: flex; gap: 6px; align-items: flex-start; margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--info-bg); color: #293a78; font-size: 12.5px; line-height: 1.45; }
+.hemo-contrast { display: flex; gap: 6px; align-items: flex-start; margin: 0; padding: 8px 12px; border-radius: 6px; background: var(--info-bg); color: var(--info-ink); font-size: 12.5px; line-height: 1.45; }
 .hemo-contrast.is-over { background: var(--danger-bg); color: var(--danger); }
 .hemo-contrast svg { flex-shrink: 0; margin-top: 2px; }
 
@@ -281,7 +281,7 @@
 
 .hemo-band { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--info-line); border-radius: 6px; background: var(--info-bg); }
 .hemo-band.is-late { border-color: var(--danger-line); background: var(--danger-bg); }
-.hemo-band-head { display: flex; gap: 10px; align-items: center; color: #293a78; }
+.hemo-band-head { display: flex; gap: 10px; align-items: center; color: var(--info-ink); }
 .hemo-band.is-late .hemo-band-head { color: var(--danger); }
 .hemo-band-head div { display: grid; gap: 2px; }
 .hemo-band-head strong { font-size: 14px; }
@@ -289,8 +289,8 @@
 
 .hemo-consent-text { margin: 0; padding: 12px 14px; border-left: 3px solid var(--brand-800); border-radius: 0 10px 10px 0; background: var(--surface-soft); color: var(--text); font-size: 13.5px; line-height: 1.6; }
 .hemo-signature { display: grid; gap: 6px; justify-items: start; }
-.hemo-signature canvas { width: 100%; max-width: 560px; height: 170px; border: 1px dashed var(--line-strong); border-radius: 6px; background: #fff linear-gradient(transparent calc(100% - 42px), var(--line) calc(100% - 42px), var(--line) calc(100% - 41px), transparent calc(100% - 41px)); touch-action: none; cursor: crosshair; }
-.hemo-consent-done img { height: 44px; max-width: 180px; border: 1px solid var(--line); border-radius: 8px; background: #fff; object-fit: contain; }
+.hemo-signature canvas { width: 100%; max-width: 560px; height: 170px; border: 1px dashed var(--line-strong); border-radius: 6px; background: var(--surface) linear-gradient(transparent calc(100% - 42px), var(--line) calc(100% - 42px), var(--line) calc(100% - 41px), transparent calc(100% - 41px)); touch-action: none; cursor: crosshair; }
+.hemo-consent-done img { height: 44px; max-width: 180px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); object-fit: contain; }
 
 .hemo-imaging-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
 .hemo-imaging .text-link, .hemo-imaging-line .text-link { display: inline-flex; align-items: center; gap: 4px; }
@@ -311,7 +311,7 @@
   .hemo-med-form input[type="number"] { width: 100%; }
 }
 /* Faixa de identificação do paciente (padrão de prontuário eletrônico: campos rotulados, alergia sempre visível). */
-.hemo-banner { display: grid; gap: 8px; margin: -1px -1px 0; padding: 12px 18px 12px 16px; border-left: 4px solid var(--brand-950); border-bottom: 1px solid var(--line-strong); background: #eef2f5; }
+.hemo-banner { display: grid; gap: 8px; margin: -1px -1px 0; padding: 12px 18px 12px 16px; border-left: 4px solid var(--brand-950); border-bottom: 1px solid var(--line-strong); background: var(--banner-bg); }
 .hemo-banner.is-urgent { border-left-color: var(--danger); }
 .hemo-banner-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .hemo-banner h2 { margin-right: auto; color: var(--ink); font-size: 15px; font-weight: 700; letter-spacing: .02em; }
@@ -320,12 +320,12 @@
 .hemo-banner dt { color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .hemo-banner dd { margin: 0; color: var(--ink); font-size: 13px; font-weight: 500; }
 .hemo-flag { display: inline-flex; align-items: center; gap: 5px; justify-self: start; padding: 2px 8px; border: 1px solid; border-radius: 3px; font-size: 12px; font-weight: 600; }
-.hemo-flag.is-allergy { color: #fff; background: var(--danger); border-color: var(--danger); }
+.hemo-flag.is-allergy { color: #fff; background: var(--danger-solid); border-color: var(--danger); }
 .hemo-flag.is-clear { color: var(--muted); background: var(--surface); border-color: var(--line-strong); font-weight: 500; }
 .hemo-flag.is-urgent { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-line); text-transform: uppercase; font-size: 11px; letter-spacing: .04em; }
 .appointment-row.is-urgent { box-shadow: inset 3px 0 var(--danger); }
 .appointment-row.is-urgent.is-selected { box-shadow: inset 3px 0 var(--danger); background: var(--surface-soft); }
-.hemo-table tbody tr:nth-child(even) { background: #fafbfc; }
+.hemo-table tbody tr:nth-child(even) { background: var(--row-alt); }
 @media (max-width: 640px) {
   .hemo-banner { padding: 10px 12px; }
   .hemo-banner dl { gap: 3px 14px; }
@@ -375,13 +375,13 @@
 .hemo-board-empty { color: var(--line-strong); font-size: 13px; text-align: center; padding-top: 12px; }
 .hemo-card { display: grid; gap: 3px; width: 100%; padding: 9px 10px; border: 1px solid var(--line-strong); border-left: 3px solid var(--st-mark); border-radius: 4px; background: var(--surface); color: var(--ink); text-align: left; }
 .hemo-card:hover { background: var(--surface-soft); border-color: var(--brand-800); border-left-color: var(--st-mark); }
-.hemo-card.is-urgent { border-left-color: var(--danger); background: #fffafa; }
+.hemo-card.is-urgent { border-left-color: var(--danger); background: var(--danger-bg); }
 .hemo-card strong { font-size: 13px; line-height: 1.25; }
 .hemo-card small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
 .hemo-card-top { display: flex; justify-content: space-between; gap: 6px; color: var(--muted); font-size: 11px; }
 .hemo-card-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 3px; }
 .hemo-card-flags .hemo-urgent-tag { margin-top: 0; }
-.hemo-card-allergy { display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; border-radius: 3px; background: var(--danger); color: #fff; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.hemo-card-allergy { display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; border-radius: 3px; background: var(--danger-solid); color: #fff; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
 
 /* Identificação sempre visível: a faixa do paciente acompanha a rolagem da ficha. */
 .panel.hemo-sheet { overflow: visible; }
@@ -436,4 +436,154 @@
   .hemo-workspace .hemo-list-search { margin-inline: 12px; }
   .hemo-workspace .hemo-list-search input { font-size: 16px; }
   .hemo-back { width: 100%; justify-content: flex-start; }
+}
+
+/* ── Segurança do paciente ── */
+.hemo-identity { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line-strong); border-left: 4px solid var(--brand-800); border-radius: var(--radius); background: var(--surface); }
+.hemo-identity h4 { display: flex; align-items: center; gap: 6px; margin: 0; }
+.hemo-identity.is-done { display: flex; align-items: center; gap: 10px; border-left-color: var(--ok); background: var(--ok-bg); color: var(--ok); font-size: 13px; }
+.hemo-identity.is-done strong { color: var(--ok); }
+.hemo-identity.is-wrong { border-color: var(--danger); border-left-color: var(--danger-solid); }
+.hemo-identity input { font-family: var(--mono); letter-spacing: .03em; }
+.hemo-stop { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 14px; border-radius: var(--radius); background: var(--danger-solid); color: #fff; font-size: 14px; font-weight: 700; animation: hemo-blink 1s ease-in-out 3; }
+@keyframes hemo-blink { 50% { opacity: .55; } }
+.hemo-band-print summary { cursor: pointer; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.hemo-band-print[open] { display: grid; gap: 10px; }
+.hemo-wristband { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: 560px; padding: 10px 14px; border: 1px dashed var(--line-strong); border-radius: 14px; background: #fff; color: #111; }
+.hemo-wristband > div:first-child { display: grid; gap: 2px; min-width: 0; }
+.hemo-wristband strong { font-size: 14px; letter-spacing: .02em; color: #111; }
+.hemo-wristband small { color: #444; font-size: 11.5px; }
+.hemo-wristband-allergy { justify-self: start; padding: 1px 6px; border-radius: 3px; background: #b8293d; color: #fff; font-size: 10.5px; font-weight: 700; }
+.hemo-wristband-code { display: grid; justify-items: center; gap: 2px; flex: none; }
+.hemo-wristband-code code { color: #111; font-size: 11px; }
+.hemo-barcode { display: block; width: 190px; height: 40px; }
+
+.hemo-scan { display: grid; gap: 8px; }
+.hemo-scan label > span { display: inline-flex; align-items: center; gap: 5px; }
+.hemo-scan input { font-family: var(--mono); }
+.hemo-scan-result { display: grid; gap: 4px; padding: 10px 14px; border: 1px solid; border-radius: var(--radius); font-size: 13px; }
+.hemo-scan-result strong { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.hemo-scan-result ul { margin: 2px 0 0; padding-left: 18px; }
+.hemo-scan-result li.is-high { font-weight: 600; }
+.hemo-scan-result.is-ok { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); }
+.hemo-scan-result.is-warn { color: var(--warn); background: var(--warn-bg); border-color: var(--warn-line); }
+.hemo-scan-result.is-bad { color: var(--danger); background: var(--danger-bg); border-color: var(--danger-line); border-left: 4px solid var(--danger-solid); }
+
+.hemo-contrast-counter { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-soft); --gauge: var(--ok); }
+.hemo-contrast-counter.is-perto { --gauge: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+.hemo-contrast-counter.is-acima { --gauge: var(--danger-solid); border-color: var(--danger-line); background: var(--danger-bg); }
+.hemo-contrast-top { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+.hemo-contrast-label { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.hemo-contrast-value { color: var(--ink); font-family: var(--mono); font-size: 28px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.hemo-contrast-value small { font-size: 13px; color: var(--muted); }
+.hemo-contrast-limit { margin-left: auto; color: var(--text); font-size: 12.5px; font-weight: 600; }
+.is-acima .hemo-contrast-limit { color: var(--danger); }
+.hemo-contrast-bar { position: relative; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.hemo-contrast-bar span { position: absolute; inset: 0 auto 0 0; background: var(--gauge); transition: width .2s ease; }
+.hemo-contrast-bar i { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--surface); opacity: .8; }
+.hemo-contrast-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+.hemo-contrast-buttons .button { min-width: 64px; min-height: 40px; font-family: var(--mono); font-size: 14px; }
+
+.hemo-reconcile { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); }
+.hemo-reconcile summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--brand-900); font-size: 13px; font-weight: 600; }
+.hemo-reconcile pre { white-space: pre-wrap; margin: 6px 0; font: inherit; font-size: 12.5px; color: var(--text); }
+.hemo-reconcile h4 { display: flex; align-items: center; gap: 6px; margin: 0; }
+.hemo-reconcile-list { display: grid; gap: 8px; }
+.hemo-reconcile-item { display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-soft); }
+.hemo-reconcile-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.hemo-reconcile-row .grow { flex: 1 1 200px; }
+.hemo-reconcile-row > label:not(.grow) { flex: 0 1 170px; }
+.hemo-reconcile-hint { display: inline-flex; align-items: center; gap: 5px; color: var(--warn); font-size: 12px; font-weight: 600; }
+
+/* ── Equipe ── */
+.hemo-time-alerts { display: grid; gap: 6px; padding: 8px 12px; border: 1px solid var(--warn-line); border-radius: var(--radius); background: var(--warn-bg); }
+.hemo-time-alerts.is-empty { border-color: var(--line); background: var(--surface); padding-block: 6px; }
+.hemo-time-alerts-head { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+.hemo-time-alerts-head strong { display: inline-flex; align-items: center; gap: 5px; color: var(--ink); }
+.hemo-time-alerts-head .text-link { margin-left: auto; font-size: 12px; padding: 0; }
+.hemo-time-alerts ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.hemo-time-alerts li button { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 7px 10px; border: 1px solid transparent; border-radius: 4px; background: var(--surface); color: var(--ink); text-align: left; font-size: 13px; }
+.hemo-time-alerts li button:hover { border-color: var(--line-strong); }
+.hemo-time-alerts li button small { display: block; color: var(--muted); font-size: 12px; }
+.hemo-time-alerts li.is-high button { border-left: 3px solid var(--danger-solid); }
+.hemo-time-alerts li.is-high svg { color: var(--danger); }
+.hemo-time-alerts li.is-warn button { border-left: 3px solid var(--warn); }
+.hemo-time-alerts li.is-warn svg { color: var(--warn); }
+
+.hemo-tasks .panel-head h2 { display: flex; align-items: center; gap: 6px; }
+.hemo-task-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0; }
+.hemo-task-group { padding: 12px 16px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.hemo-task-group h3 { display: flex; justify-content: space-between; margin: 0 0 8px; color: var(--muted); font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
+.hemo-task-group h3 span { font-family: var(--mono); }
+.hemo-task-group ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.hemo-task-group button { display: grid; gap: 2px; width: 100%; padding: 8px 10px; border: 1px solid var(--line-strong); border-left: 3px solid var(--brand-800); border-radius: 4px; background: var(--surface); color: var(--ink); text-align: left; transition: background-color .12s ease; }
+.hemo-task-group button:hover { background: var(--surface-soft); }
+.hemo-task-group button.is-urgent { border-left-color: var(--danger-solid); }
+.hemo-task-group button strong { font-size: 13px; }
+.hemo-task-group button small { color: var(--muted); font-size: 12px; }
+
+.hemo-tab-actions { display: flex; justify-content: flex-end; }
+.hemo-night-urgent { position: fixed; right: 20px; bottom: 20px; z-index: 15; display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 20px; border: 0; border-radius: 26px; background: var(--danger-solid); color: #fff; font-size: 15px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); }
+.hemo-night-urgent:hover { filter: brightness(1.08); }
+
+/* Painel da TV: tela cheia, letras grandes, alto contraste. */
+.hemo-tv { min-height: 100vh; display: flex; flex-direction: column; gap: 24px; padding: 32px 40px; background: #0b1216; color: #e7eef3; font-family: var(--font); }
+.hemo-tv header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid #24313a; }
+.hemo-tv header div { display: grid; gap: 4px; }
+.hemo-tv header strong { font-size: 32px; }
+.hemo-tv header span { color: #92a0aa; font-size: 18px; }
+.hemo-tv time { font-family: var(--mono); font-size: 34px; }
+.hemo-tv ol { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.hemo-tv li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .6fr) minmax(0, 1fr); align-items: center; gap: 20px; padding: 18px 24px; border-left: 8px solid #7a8ca0; border-radius: 6px; background: #121b21; font-size: clamp(22px, 3vw, 40px); }
+.hemo-tv .hemo-tv-who { font-weight: 700; letter-spacing: .06em; }
+.hemo-tv .hemo-tv-room { color: #92a0aa; }
+.hemo-tv .hemo-tv-status { font-weight: 600; text-align: right; }
+.hemo-tv li.is-Preparo { border-left-color: #1f9a94; }
+.hemo-tv li.is-Sala { border-left-color: #d23a48; }
+.hemo-tv li.is-Sala .hemo-tv-status { color: #f2848e; }
+.hemo-tv li.is-Recuperação { border-left-color: #8a63c7; }
+.hemo-tv li.is-Recuperação .hemo-tv-status { color: #c7b0ee; }
+.hemo-tv li.is-Laudo { border-left-color: #63c993; }
+.hemo-tv li.is-Laudo .hemo-tv-status { color: #63c993; }
+.hemo-tv-empty { margin: auto; color: #92a0aa; font-size: 28px; }
+.hemo-tv footer { margin-top: auto; color: #6f7d87; font-size: 16px; }
+
+/* ── Gestão ── */
+.hemo-report-panel .panel-head h2, .hemo-quality + h2 { display: flex; align-items: center; gap: 6px; }
+.hemo-print-report { display: grid; gap: 12px; padding: 16px 20px 20px; }
+.hemo-print-report header h1 { font-size: 18px; }
+.hemo-print-report header p, .hemo-print-report footer { color: var(--muted); font-size: 12px; }
+.hemo-print-report h2 { margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.hemo-print-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.hemo-print-kpis div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.hemo-print-kpis span { color: var(--muted); font-size: 11.5px; font-weight: 600; }
+.hemo-print-kpis strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.hemo-print-kpis small { color: var(--muted); font-size: 11.5px; }
+.hemo-quality td.is-better { color: var(--ok); font-weight: 600; }
+.hemo-quality td.is-worse { color: var(--warn); font-weight: 600; }
+.hemo-quality .hemo-quality-service td { background: var(--surface-soft); border-top: 2px solid var(--line-strong); }
+.hemo-forecast-note, .hemo-forecast-actions { padding: 0 16px 14px; }
+
+/* Etapas no tema escuro: cor da marca sobre fundo escuro translúcido. */
+:root[data-theme="dark"] .stage-badge { background: color-mix(in srgb, var(--st-mark) 20%, transparent); color: color-mix(in srgb, var(--st-mark) 70%, white); }
+:root[data-theme="dark"] .hemo-board-col h3 { color: color-mix(in srgb, var(--st-mark) 70%, white); }
+:root[data-theme="dark"] .hemo-pipeline button[aria-pressed=true], :root[data-theme="dark"] .hemo-view-toggle button[aria-pressed=true], :root[data-theme="dark"] .hemo-period button[aria-pressed="true"] { background: #1f4a66; border-color: #2c6488; }
+
+/* Impressão: só a pulseira ou só o relatório. */
+@media print {
+  body.is-printing-report *, body.is-printing-band * { visibility: hidden !important; }
+  body.is-printing-report .hemo-print-report, body.is-printing-report .hemo-print-report *,
+  body.is-printing-band .hemo-wristband.is-printing, body.is-printing-band .hemo-wristband.is-printing * { visibility: visible !important; }
+  body.is-printing-report .hemo-print-report { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; color: #000; background: #fff; }
+  body.is-printing-report .hemo-print-report .hemo-table th, body.is-printing-report .hemo-print-report td { color: #000; }
+  body.is-printing-band .hemo-wristband.is-printing { position: absolute; left: 0; top: 0; border: 1px solid #000; }
+}
+@media (max-width: 640px) {
+  .hemo-contrast-limit { margin-left: 0; flex-basis: 100%; }
+  .hemo-contrast-buttons .button { flex: 1; min-width: 0; }
+  .hemo-night-urgent { right: 14px; bottom: 14px; }
+  .hemo-wristband { flex-direction: column; align-items: flex-start; }
+  .hemo-tv { padding: 18px; }
+  .hemo-tv li { grid-template-columns: 1fr; gap: 4px; }
+  .hemo-tv .hemo-tv-status { text-align: left; }
 }

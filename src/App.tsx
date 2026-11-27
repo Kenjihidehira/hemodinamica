@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Search, UsersRound, X } from 'lucide-react';
+import { AlertTriangle, ArrowDownLeft, ArrowLeftRight, ArrowRight, ArrowUpRight, Barcode, Bell, Boxes, CalendarDays, ChartNoAxesCombined, Check, Download, HeartPulse, LayoutDashboard, LogOut, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plus, RotateCcw, Search, Sun, UsersRound, X } from 'lucide-react';
+import { PublicBoardScreen, PUBLIC_BOARD_HASH } from './hemo/TeamPanels';
 import { availableQuantity, daysToExpiry, formatDate, getProduct as findProduct, makeDemoData, normalizeData, orderReservedQuantity, storageKey, withHemoCatalog, type DemoData, type Movement, type Stock, type Product } from './data';
 import Analytics from './Analytics';
 import Catalog from './Catalog';
@@ -108,7 +109,26 @@ function downloadCsv(data: DemoData) {
 /** Ninguém vê o sistema sem entrar. Sem usuários, a primeira tela cria o administrador. */
 export default function App() {
   const auth = useAuth();
-  return auth.user ? <Workspace auth={auth}/> : <AccessScreen auth={auth}/>;
+  const [hash, setHash] = useState(() => window.location.hash);
+  useEffect(() => { const sync = () => setHash(window.location.hash); window.addEventListener('hashchange', sync); return () => window.removeEventListener('hashchange', sync); }, []);
+  if (!auth.user) return <AccessScreen auth={auth}/>;
+  return hash === PUBLIC_BOARD_HASH ? <PublicBoardOnly/> : <Workspace auth={auth}/>;
+}
+/** Painel da TV (sala de espera, recuperação): tela cheia, sem menu; atualiza quando outra aba grava. */
+function PublicBoardOnly() {
+  const hemo = useHemo('');
+  useEffect(() => { document.documentElement.dataset.theme = 'dark'; }, []);
+  return hemo.data ? <PublicBoardScreen data={hemo.data}/> : <p className="module-error" role="alert">{hemo.error}</p>;
+}
+
+type ThemeMode = 'auto' | 'claro' | 'escuro';
+const themeLabel: Record<ThemeMode, string> = { auto: 'Automático', claro: 'Claro', escuro: 'Escuro' };
+const nightAt = (now: Date, timeZone: string) => { const hour = Number(now.toLocaleString('en-US', { timeZone, hour: '2-digit', hourCycle: 'h23' })); return hour < 7 || hour >= 19; };
+/** Plantão noturno (19–07 h no fuso do hospital), conferido a cada minuto. */
+function useNightShift(timeZone: string) {
+  const [night, setNight] = useState(() => nightAt(new Date(), timeZone));
+  useEffect(() => { const id = window.setInterval(() => setNight(nightAt(new Date(), timeZone)), 60_000); return () => window.clearInterval(id); }, [timeZone]);
+  return night;
 }
 
 function Workspace({ auth }: { auth: AuthSession }) {
@@ -137,6 +157,13 @@ function Workspace({ auth }: { auth: AuthSession }) {
   const [rail, setRail] = useState(() => { try { return localStorage.getItem('hemo-sidebar-rail') === '1'; } catch { return false; } });
   function toggleRail() { setRail(current => { try { localStorage.setItem('hemo-sidebar-rail', current ? '0' : '1'); } catch { /* vale só nesta sessão */ } return !current; }); }
   const quickSearchRef = useRef<HTMLInputElement>(null);
+  /** Tema: automático escurece no plantão noturno (sala com luz baixa); claro e escuro fixam. Preferência deste navegador. */
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => { try { const v = localStorage.getItem('hemo-tema'); return v === 'claro' || v === 'escuro' ? v : 'auto'; } catch { return 'auto'; } });
+  const night = useNightShift(hospitalConfig?.timezone ?? 'America/Sao_Paulo');
+  const dark = themeMode === 'escuro' || (themeMode === 'auto' && night);
+  // Ao sair (tela de login), o tema volta ao claro padrão.
+  useEffect(() => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; return () => { delete document.documentElement.dataset.theme; }; }, [dark]);
+  function cycleTheme() { const next: ThemeMode = themeMode === 'auto' ? 'escuro' : themeMode === 'escuro' ? 'claro' : 'auto'; setThemeMode(next); try { localStorage.setItem('hemo-tema', next); } catch { /* só nesta sessão */ } }
   const [inventoryView, setInventoryView] = useState<'counts' | 'movements'>('counts');
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('Todas as situações');
@@ -294,7 +321,7 @@ function Workspace({ auth }: { auth: AuthSession }) {
     </header>
     {menuOpen && <button className="header-menu-backdrop" aria-label="Fechar navegação" tabIndex={-1} onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }}/>}
     <main className="main">
-      <ContextBar unit={institution || 'Unidade de demonstração'} timeZone={hospitalConfig?.timezone ?? 'America/Sao_Paulo'}/>
+      <ContextBar unit={institution || 'Unidade de demonstração'} timeZone={hospitalConfig?.timezone ?? 'America/Sao_Paulo'} theme={<button type="button" className="theme-toggle" onClick={cycleTheme} title="Alternar tema: automático (escuro no plantão noturno), escuro ou claro" aria-label={`Tema ${themeLabel[themeMode]}${themeMode === 'auto' ? (dark ? ', escuro agora' : ', claro agora') : ''}. Alternar`}>{dark ? <Moon size={13}/> : <Sun size={13}/>} {themeLabel[themeMode]}</button>}/>
       <div className="content" id="conteudo" tabIndex={-1}>
         <div className="page-head">
           <div className="page-title-block"><h1>{pageTitle[page]}</h1>{pageSubtitle[page] && <p className="subhead">{pageSubtitle[page]}</p>}</div>
@@ -309,7 +336,7 @@ function Workspace({ auth }: { auth: AuthSession }) {
         </div>
         {stockPages.has(page) && <nav className="stock-section-nav" aria-label="Seções do estoque">{stockSections.map(({ page: target, label, icon: Icon }) => <button key={target} type="button" aria-current={page === target ? 'page' : undefined} onClick={() => navigate(target)}><Icon size={17} strokeWidth={1.8} aria-hidden="true"/><span>{label}</span>{target === 'alerts' && alertStock.length > 0 && <strong aria-label={`${alertStock.length} alertas`}>{alertStock.length}</strong>}</button>)}</nav>}
         <div className="page-actions-row"><div className="head-actions">{page === 'stock' && <button className="button secondary" onClick={() => downloadCsv(data)}><Download size={16}/> Exportar CSV</button>}{page === 'analytics' && <button className="button secondary" onClick={() => navigate('stock')}>Ver estoque <ArrowRight size={16}/></button>}{['overview', 'stock', 'alerts'].includes(page) && <button className="button primary" onClick={() => openMovement()}><Plus size={17}/> Nova movimentação</button>}</div></div>
-        {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot} user={user}/>}
+        {page === 'hemo' && <HemoWorkspace store={hemo} stock={data} onStockChange={setData} onOpenLot={openLot} user={user} night={dark}/>}
         {page === 'agenda' && <HospitalWorkspace key="agenda" store={hospital}/>}
         {page === 'profiles' && <HospitalWorkspace key="profiles" store={hospital} auth={auth} profiles/>}
         {storageWarning && <p role="alert" className="module-error">Não foi possível salvar no navegador. As alterações desta sessão podem ser perdidas ao fechar a página.</p>}
@@ -336,14 +363,14 @@ function Workspace({ auth }: { auth: AuthSession }) {
 }
 
 /** Unidade, plantão (diurno 07–19 h) e hora local, atualizados a cada 30 s. */
-function ContextBar({ unit, timeZone }: { unit: string; timeZone: string }) {
+function ContextBar({ unit, timeZone, theme }: { unit: string; timeZone: string; theme?: React.ReactNode }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const id = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(id); }, []);
   const hour = Number(now.toLocaleString('en-US', { timeZone, hour: '2-digit', hourCycle: 'h23' }));
   const night = hour < 7 || hour >= 19;
   const date = now.toLocaleDateString('pt-BR', { timeZone, weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
   const time = now.toLocaleTimeString('pt-BR', { timeZone, hour: '2-digit', minute: '2-digit' });
-  return <div className="context-bar" aria-label="Contexto do plantão"><strong>{unit}</strong><span className={`shift ${night ? 'is-night' : ''}`}>Plantão {night ? 'noturno · 19–07 h' : 'diurno · 07–19 h'}</span><time dateTime={now.toISOString()}>{date} · {time}</time></div>;
+  return <div className="context-bar" aria-label="Contexto do plantão"><strong>{unit}</strong><span className={`shift ${night ? 'is-night' : ''}`}>Plantão {night ? 'noturno · 19–07 h' : 'diurno · 07–19 h'}</span>{theme}<time dateTime={now.toISOString()}>{date} · {time}</time></div>;
 }
 
 function StockTable({ items, data, compact = false, narrow = false, selectedId, onSelect, empty }: { items: Stock[]; data: DemoData; compact?: boolean; narrow?: boolean; selectedId?: string; onSelect: (id: string) => void; empty?: React.ReactNode }) {

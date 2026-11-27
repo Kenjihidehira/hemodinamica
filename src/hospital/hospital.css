@@ -6,7 +6,7 @@
 .hospital-two-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .hospital-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .hospital-workspace label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
-.hospital-workspace input:not([type=checkbox]), .hospital-workspace select { width: 100%; min-height: 40px; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 8px 10px; background: white; color: var(--ink); }
+.hospital-workspace input:not([type=checkbox]), .hospital-workspace select { width: 100%; min-height: 40px; border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); color: var(--ink); }
 .hospital-workspace .hospital-check { display: flex; flex-direction: row; align-items: center; gap: 9px; line-height: 1.6; }
 .hospital-workspace input[type=checkbox] { accent-color: var(--brand-900); width: 17px; height: 17px; flex-shrink: 0; }
 .hospital-tabs { overflow-x: auto; flex-wrap: nowrap; margin: 12px 0 16px; padding: 0; border-bottom: 1px solid var(--line-strong); background: transparent; scrollbar-width: thin; }
@@ -55,7 +55,7 @@
 .agenda-event.status-cancelled { border-left-color: var(--danger); background: var(--danger-bg); color: var(--danger); opacity: .78; }
 .agenda-calendar-empty { position: absolute; z-index: 4; top: 24px; left: 110px; margin: 0; padding: 10px 14px; border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 12px; box-shadow: 0 5px 18px rgba(16, 62, 88, .08); }
 .agenda-empty-lane { padding: 24px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.appointment-row { display: flex; width: 100%; text-align: left; background: white; border: 0; border-bottom: 1px solid var(--line); gap: 14px; padding: 11px 16px; align-items: center; }
+.appointment-row { display: flex; width: 100%; text-align: left; background: var(--surface); border: 0; border-bottom: 1px solid var(--line); gap: 14px; padding: 11px 16px; align-items: center; }
 .appointment-row:last-child { border-bottom: 0; }
 .appointment-row:hover, .appointment-row.is-selected { background: var(--surface-soft); }
 .appointment-row.is-selected { box-shadow: inset 3px 0 var(--brand-900); }
@@ -64,7 +64,7 @@
 .appointment-person { flex: 1; overflow-wrap: anywhere; }
 .appointment-person strong { color: var(--ink); }
 .appointment-status { padding: 4px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; display: inline-block; align-self: center; white-space: nowrap; }
-.status-scheduled { background: var(--info-bg); color: #293a78; }
+.status-scheduled { background: var(--info-bg); color: var(--info-ink); }
 .status-waiting { background: var(--warn-bg); color: var(--warn); }
 .status-done { background: var(--ok-bg); color: var(--ok); }
 .status-cancelled { background: var(--danger-bg); color: var(--danger); }
@@ -75,7 +75,7 @@
 .slot-fieldset, .days-picker, .responsible-picker { border: 0; border-top: 1px solid var(--line); padding: 12px 0 0; margin: 0; }
 .slot-fieldset legend, .days-picker legend, .responsible-picker legend { font-size: 12px; font-weight: 600; padding-right: 10px; }
 .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
-.slot-grid button { border: 1px solid var(--line-strong); background: white; color: var(--ink); padding: 10px; border-radius: var(--radius); font-variant-numeric: tabular-nums; }
+.slot-grid button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); padding: 10px; border-radius: var(--radius); font-variant-numeric: tabular-nums; }
 .slot-grid button.is-selected { background: var(--brand-900); border-color: var(--brand-900); color: white; }
 .days-picker { display: flex; flex-wrap: wrap; gap: 12px; }
 .days-picker label { flex-direction: row; align-items: center; }
@@ -99,7 +99,7 @@
 .profile-avatar.is-large { flex-basis: 76px; width: 76px; height: 76px; font-size: 19px; }
 .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .profile-list { display: grid; gap: 10px; padding: 0 18px 18px; }
-.profile-card { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 82px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text); text-align: left; }
+.profile-card { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; min-height: 82px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); text-align: left; }
 .profile-card:hover { border-color: var(--info-line); background: var(--brand-50); }
 .profile-card-copy { display: grid; min-width: 0; gap: 2px; }
 .profile-card-copy strong { overflow: hidden; color: var(--ink); font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }

@@ -9,6 +9,7 @@ import {
 } from '../src/hemo/domain.ts';
 import { makeDemoData, withHemoCatalog, availableQuantity, HEMO_CATEGORY } from '../src/data.ts';
 import { allocate } from '../src/domain.ts';
+import { confirmIdentity } from '../src/hemo/safety.ts';
 
 const now = new Date('2026-11-23T13:00:00Z'); // 10h em São Paulo.
 const base = () => makeHemoData(now);
@@ -20,7 +21,7 @@ const intra = { roomIn: '', start: '2026-11-24T09:05', end: '2026-11-24T09:45', 
 
 /** Leva o caso 1 (agendado amanhã às 09:00, sala 1, doc-1) até a sala. */
 function inRoom() {
-  const data = savePrep(base(), 'case-1', allPrep, allTimeout, '', now);
+  const data = confirmIdentity(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', { code: 'PAC-HP-2' }, now);
   return startProcedure(data, 'case-1', now);
 }
 
@@ -253,6 +254,7 @@ test('urgência: entra sem autorização, toma a sala, time-out obrigatório, po
   assert.deepEqual(displacedBy(data, c).map(x => x.id), ['case-1']);
   assert.throws(() => startProcedure(data, id, at), /Time-out/);
   data = savePrep(data, id, c.prep, allTimeout, '', at);
+  data = confirmIdentity(data, id, { manualReason: 'Pulseira ainda não colocada no pronto-socorro; nome e nascimento conferidos.' }, at);
   data = startProcedure(data, id, at);
   const used = consumeMaterial(data, stock, id, 'hs-6', 1, at, 'SN-URG-1');
   data = used.hemo;

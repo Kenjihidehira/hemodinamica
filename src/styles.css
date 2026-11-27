@@ -31,6 +31,11 @@
   --danger: #a12d3a; --danger-bg: #fdeef0; --danger-line: #f0c9cf;
   --info: var(--brand-900); --info-bg: var(--brand-50); --info-line: #d3daee;
 
+  --info-ink: #293a78;
+  --danger-solid: #a12d3a;
+  --row-alt: #fafbfc;
+  --banner-bg: #eef2f5;
+
   --radius: 6px;
   --control-h: 40px;
   --focus: 0 0 0 3px rgba(37, 130, 166, .22);
@@ -46,6 +51,34 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
+
+/*
+  Modo plantão noturno (tema escuro): contraste alto sem branco ofuscante, para sala com luz baixa.
+  Ativado pelo seletor da barra de contexto (automático das 19 h às 7 h, ou fixo).
+*/
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --brand-50: #132a3a; --brand-100: #1a3850;
+  --ink: #e7eef3; --text: #c4cfd7; --muted: #92a0aa; --subtle: #6f7d87;
+  --line: #24313a; --line-strong: #35444f;
+  --canvas: #0b1216; --surface: #121b21; --surface-soft: #17222a;
+  --ok: #63c993; --ok-bg: #11281c; --ok-line: #1e4a32;
+  --warn: #e6b45c; --warn-bg: #2a2110; --warn-line: #4e3c17;
+  --danger: #f2848e; --danger-bg: #2d1418; --danger-line: #5b2731; --danger-solid: #b8293d;
+  --info-line: #2a4058; --info-ink: #a6c2ec;
+  --row-alt: #141e24; --banner-bg: #16232b;
+  --focus: 0 0 0 3px rgba(110, 175, 220, .35);
+}
+:root[data-theme="dark"] .nav-item.active { color: var(--ink); }
+:root[data-theme="dark"] .nav-item.active::after { background: #6fb4dc; }
+:root[data-theme="dark"] .button.secondary, :root[data-theme="dark"] .text-link, :root[data-theme="dark"] .table-foot button, :root[data-theme="dark"] .panel-footer, :root[data-theme="dark"] .hemo-back { color: #8fc5e2; }
+:root[data-theme="dark"] .button:disabled { background: #1b252c; color: #6a7781; border-color: #26323a; }
+:root[data-theme="dark"] .account-summary > span { background: #1f4a66; }
+:root[data-theme="dark"] .module-tabs button[aria-pressed="true"] { color: var(--ink); }
+:root[data-theme="dark"] .hemo-stepper li.is-current { color: var(--ink); border-top-color: #6fb4dc; }
+:root[data-theme="dark"] .header-bar .header-menu-toggle { color: var(--ink); }
+:root[data-theme="dark"] .brand-mark { filter: brightness(.92); }
+:root[data-theme="dark"] input::placeholder, :root[data-theme="dark"] textarea::placeholder { color: #6c7a84; }
 
 /* ── Base ───────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
@@ -95,7 +128,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .context-bar time { margin-left: auto; color: var(--ink); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .context-bar .shift { display: inline-flex; align-items: center; gap: 6px; }
 .context-bar .shift::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
-.context-bar .shift.is-night::before { background: var(--brand-950); }
+.context-bar .shift.is-night::before { background: #6f8fd8; }
+.theme-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 11.5px; font-weight: 600; }
+.theme-toggle:hover { background: var(--surface-soft); color: var(--ink); }
 .page-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
 .page-head h1 { font-size: 21px; line-height: 1.2; font-weight: 650; color: var(--ink); letter-spacing: 0; }
 .subhead { margin-top: 3px; color: var(--muted); font-size: 13px; max-width: 760px; }
@@ -193,7 +228,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: non
 .data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table td { padding: 11px 14px; border-bottom: 1px solid var(--line); color: var(--text); vertical-align: top; }
 .data-table tbody tr:last-child td { border-bottom: 0; }
-.data-table tbody tr:nth-child(even) { background: #fafbfc; }
+.data-table tbody tr:nth-child(even) { background: var(--row-alt); }
 .data-table tbody tr:hover { background: var(--brand-50); }
 .data-table .cell-strong { min-width: 180px; color: var(--ink); font-weight: 600; }
 .data-table small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; font-weight: 400; }

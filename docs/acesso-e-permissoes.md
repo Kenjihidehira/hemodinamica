@@ -15,6 +15,7 @@ Se não há nenhum usuário neste navegador, a primeira tela pede para criar o *
 | Criar e alterar **perfis de médicos e profissionais** (Perfis → Profissionais) | ✓ | — | — |
 | Criar usuários, definir perfil, redefinir senha, desativar (Perfis → Usuários e acesso) | ✓ | — | — |
 | Alterar a **tabela de custos e valores** (Hemodinâmica → Ocupação e custos) | ✓ | — | — |
+| Ver a **qualidade por hemodinamicista** (Hemodinâmica → Indicadores) | ✓ | — | — |
 
 - Sem permissão, a aba Profissionais mostra a equipe só para consulta e explica que o cadastro é restrito.
 - A permissão é conferida também na hora de gravar, não só escondendo o botão.

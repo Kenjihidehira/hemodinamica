@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { confirmIdentity } from '../src/hemo/safety.ts';
 import { makeHemoData, parseHemoData, findCase, savePrep, startProcedure, finishProcedure, scheduleCase, scheduleProblem, startEmergency, freeStarts } from '../src/hemo/domain.ts';
 import { addVital, removeVital, vitalFlags, saveSedation, handoffDraft, saveHandoff, needsHandoff, addRoomBlock, blockProblem, blockConflicts, endRoomBlock } from '../src/hemo/care.ts';
 import { roomUsage, periodEndingToday } from '../src/hemo/operations.ts';
@@ -11,7 +12,7 @@ const catalog = withHemoCatalog(makeDemoData()).products;
 const base = () => makeHemoData(now);
 const allPrep = { fasting: true, labs: true, allergy: true, anticoagulant: true, consent: true, venousAccess: true };
 const allTimeout = { identity: true, procedure: true, materials: true, team: true };
-const inRoom = () => startProcedure(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', now); // entrada 10:00
+const inRoom = () => startProcedure(confirmIdentity(savePrep(base(), 'case-1', allPrep, allTimeout, '', now), 'case-1', { code: 'PAC-HP-2' }, now), 'case-1', now); // entrada 10:00
 const vital = patch => ({ at: '2026-11-23T10:05', sbp: 128, dbp: 76, hr: 72, spo2: 97, rr: 16, rhythm: 'Sinusal', ...patch });
 const intra = { roomIn: '', start: '2026-11-23T10:05', balloonAt: '', end: '2026-11-23T10:25', access: 'Radial direita', contrastMl: 80, fluoroMin: 6, kermaMgy: 420, complications: '', events: [], pressures: { aoSystolic: null, aoDiastolic: null, lvedp: null } };
 
